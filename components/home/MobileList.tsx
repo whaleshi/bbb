@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { Pagination, Skeleton, Image } from "@heroui/react";
-import MyAvatar from "@/components/common/AvatarImage";
 import { formatBigNumber } from "@/utils/formatBigNumber";
 import {
   TRANSACTION_CONFIG,

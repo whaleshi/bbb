@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Form, Input, Button, Textarea, useDisclosure, Image } from "@heroui/react";
 import { useRouter } from "next/navigation";
-import MyAvatar from "@/components/common/AvatarImage";
 import ResponsiveDialog from "../common/ResponsiveDialog";
 import pinFileToIPFS from "@/utils/pinata";
 import { toast } from "sonner";
@@ -549,10 +548,12 @@ export default function CreateForm() {
                 classNames={{ body: "text-[#fff]" }}
             >
                 <div className="flex flex-col items-center pt-[20px]">
-                    <MyAvatar
+                    <Image
                         src={avatarUrl || "/images/common/default.png"}
                         alt='tokenAvatar'
                         className="w-[80px] h-[80px] rounded-full"
+                        width={80}
+                        height={80}
                     />
                     <div className="text-[17px] f600 mt-[12px]">{ticker}</div>
                     <div className="text-[13px] text-[#67646B] mt-[4px]">{nameVal}</div>
