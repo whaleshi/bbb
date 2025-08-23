@@ -15,7 +15,7 @@ export default function CreateForm({ isOpen = false, onOpenChange }: SlippagePro
   return (
     <ResponsiveDialog
       isOpen={isOpen}
-      onOpenChange={onOpenChange}
+      onOpenChange={onOpenChange ?? (() => { })}
       maxVH={70}
       size="md"
       title="设置"
