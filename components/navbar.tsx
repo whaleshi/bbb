@@ -8,7 +8,7 @@ import {
 	NavbarItem,
 	NavbarMenuItem,
 } from "@heroui/navbar";
-import { Kbd, Input, Button, Link, Image } from "@heroui/react";
+import { Kbd, Input, Button, Link, Image, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 import { link as linkStyles } from "@heroui/theme";
 import NextLink from "next/link";
 import clsx from "clsx";
@@ -25,12 +25,13 @@ import {
 	Logo,
 } from "@/components/icons";
 
-import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
+import { useAppKit, useAppKitAccount, useDisconnect } from "@reown/appkit/react";
 import { useState } from "react";
 
 export const Navbar = () => {
-	const { open } = useAppKit();
+	const { open, close } = useAppKit();
 	const { address, isConnected, caipAddress, status, embeddedWalletInfo } = useAppKitAccount();
+	const { disconnect } = useDisconnect();
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const searchInput = (
 		<Input
@@ -48,8 +49,13 @@ export const Navbar = () => {
 		/>
 	);
 
+	const toDisconnect = () => {
+		disconnect();
+		setIsMenuOpen(false);
+	}
+
 	return (
-		<HeroUINavbar maxWidth="xl" position="sticky" height="56px" className="border-b-[1px] border-[#F3F3F3] !px-0" isMenuOpen={isMenuOpen} onMenuOpenChange={setIsMenuOpen}>
+		<HeroUINavbar maxWidth="xl" position="static" height="56px" className="border-b-[1px] border-[#F3F3F3] !px-0 fixed top-0 left-0 right-0 z-50 bg-white" isMenuOpen={isMenuOpen} onMenuOpenChange={setIsMenuOpen}>
 			<NavbarContent className="basis-1/5 sm:basis-full !px-0" justify="start">
 				<NavbarBrand as="li" className="gap-3 max-w-fit">
 					<NextLink className="flex justify-start items-center gap-[12px]" href="/">
@@ -57,6 +63,14 @@ export const Navbar = () => {
 						<p className="font-bold text-inherit">OKBRO</p>
 					</NextLink>
 				</NavbarBrand>
+				<div className="hidden md:flex gap-[24px] ml-[24px]">
+					<NextLink href="#" className="text-[14px] text-[#101010] hover:text-[#666]">
+						运行机制
+					</NextLink>
+					<NextLink href="/create" className="text-[14px] text-[#101010] hover:text-[#666]">
+						创建代币
+					</NextLink>
+				</div>
 			</NavbarContent>
 
 			<NavbarContent
@@ -78,9 +92,38 @@ export const Navbar = () => {
 				<NavbarItem className="hidden lg:flex">{searchInput}</NavbarItem>
 				<NavbarItem className="hidden md:flex">
 					{
-						isConnected ? <div className="h-[40px] px-[12px] border-1 border-[#F3F3F3] flex items-center justify-center">
-							{shortenAddress(address!)}
-						</div> : <Button
+						isConnected ? (
+							<Dropdown placement="bottom-end" classNames={{ content: "rounded-[0px]" }}>
+								<DropdownTrigger>
+									<div className="h-[40px] px-[12px] border-1 border-[#F3F3F3] rounded-[0px] flex items-center justify-center cursor-pointer hover:bg-[#F9F9F9]">
+										{shortenAddress(address!)}
+									</div>
+								</DropdownTrigger>
+								<DropdownMenu aria-label="Profile Actions" variant="faded" className="rounded-[0px]">
+									<DropdownItem key="balance" className="h-14 gap-2 rounded-[0px]" textValue="余额">
+										<div className="flex flex-col">
+											<p className="text-sm text-[#999]">余额</p>
+											<p className="text-sm font-semibold text-[#101010]">0 OKB</p>
+										</div>
+									</DropdownItem>
+									<DropdownItem key="address" className="rounded-[0px]" textValue="地址">
+										<div className="flex items-center gap-2">
+											<span className="text-sm text-[#101010]">{shortenAddress(address!)}</span>
+											<span className="text-xs text-[#999] cursor-pointer">复制</span>
+										</div>
+									</DropdownItem>
+									<DropdownItem 
+										key="logout" 
+										className="text-danger rounded-[0px]" 
+										color="danger"
+										onPress={() => toDisconnect()}
+										textValue="断开连接"
+									>
+										断开连接
+									</DropdownItem>
+								</DropdownMenu>
+							</Dropdown>
+						) : <Button
 							isExternal
 							as={Link}
 							radius="none"
@@ -108,10 +151,7 @@ export const Navbar = () => {
 						radius="none"
 						className="h-[40px] text-sm font-normal text-[13px] text-[#FFF] bg-[#000]"
 						variant="flat"
-						onPress={() => {
-							setIsMenuOpen(true);
-							open();
-						}}
+						onPress={() => { open(); }}
 					>
 						连接钱包
 					</Button>
@@ -129,7 +169,7 @@ export const Navbar = () => {
 								<div className="text-[18px] text-[#101010] font-semibold">0 OKB</div>
 							</div>
 							<div
-								onClick={() => setIsMenuOpen(false)}
+								onClick={() => { toDisconnect() }}
 								className="w-[48px] h-[32px] flex items-center justify-center bg-[#FDD9ED] text-[11px] text-[#EB4B6D] cursor-pointer"
 							>
 								断开

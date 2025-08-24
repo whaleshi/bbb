@@ -96,7 +96,7 @@ function AvatarField({
                 <label
                     id={labelId}
                     htmlFor={inputId}
-                    className={["text-[14px] text-[#666] font-bold", errorText && "text-[#f31260]"].join(" ")}
+                    className={["text-[14px] text-[#666] font-normal", errorText && "text-[#f31260]"].join(" ")}
                 >
                     图标
                     {required ? <span className="text-[#f31260] ml-[2px]">*</span> : null}
@@ -107,7 +107,7 @@ function AvatarField({
                 <div
                     ref={wrapperRef}
                     className={[
-                        "relative w-[84px] h-[84px] shrink-0 overflow-hidden",
+                        "relative w-[80px] h-[80px] shrink-0 overflow-hidden",
                     ].join(" ")}
                 >
                     <Image
@@ -116,8 +116,8 @@ function AvatarField({
                         className="w-[80px] h-[80px] border-1 border-[#F3F3F3] rounded-[0px] object-cover"
                     />
                     {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center rounded-full">
-                            <div className="w-[84px] h-[84px] border-t-transparent animate-spin"></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-6 h-6 border-2 border-[#41CD5A] border-t-transparent animate-spin rounded-full"></div>
                         </div>
                     )}
                     {/* 真正的文件选择输入：不再 required，让代理来控制校验顺序 */}
@@ -143,13 +143,15 @@ function AvatarField({
 export default function CreateForm() {
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
     const router = useRouter();
-    const { isOpen, onOpen, onOpenChange } = useDisclosure();
-    const [ticker, setTicker] = useState("");
-    const [nameVal, setNameVal] = useState("");
+    const { isOpen, onOpen, onOpenChange } = useDisclosure({
+        defaultOpen: true
+    });
+    const [ticker, setTicker] = useState("OKBRO");
+    const [nameVal, setNameVal] = useState("okbro.fun");
 
     // 头像
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
-    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+    const [avatarUrl, setAvatarUrl] = useState<string | null>("/default.png");
     const [avatarError, setAvatarError] = useState<string | null>(null);
     const [uploadLoading, setUploadLoading] = useState(false);
     const [ipfsHash, setIpfsHash] = useState<string | null>(null);
@@ -159,7 +161,8 @@ export default function CreateForm() {
     const [xVal, setXVal] = useState("");
     const [telegramVal, setTelegramVal] = useState("");
     const [peopleVal, setPeopleVal] = useState("");
-    const [createdTokenAddress, setCreatedTokenAddress] = useState<string | null>(null);
+    const [preBuyVal, setPreBuyVal] = useState("");
+    const [createdTokenAddress, setCreatedTokenAddress] = useState<string | null>("0x1234567890abcdef1234567890abcdef12345678");
     const factoryAddr = CONTRACT_CONFIG.FACTORY_CONTRACTV3;
 
 
@@ -388,7 +391,7 @@ export default function CreateForm() {
 
     return (
         <>
-            <Form className="w-full gap-[24px]" onSubmit={onSubmit}>
+            <Form className="w-full gap-[24px] mt-[16px]" onSubmit={onSubmit}>
                 {/* 头像（必填，统一提示样式） */}
                 <AvatarField
                     valueUrl={avatarUrl}
@@ -458,6 +461,32 @@ export default function CreateForm() {
                     onChange={(e) => setDescriptionVal(e.target.value)}
                     maxLength={200}
                     radius="none"
+                />
+
+                {/* 提前买入 */}
+                <Input
+                    classNames={{
+                        inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                    }}
+                    label={
+                        <div className="flex items-center gap-2">
+                            <span className="text-[14px] text-[#666]">提前买入</span>
+                            <span className="text-[#999]">-可选</span>
+                        </div>
+                    }
+                    labelPlacement="outside-top"
+                    name="preBuy"
+                    placeholder="请输入金额"
+                    variant="bordered"
+                    type="number"
+                    aria-label="请输入提前买入金额"
+                    value={preBuyVal}
+                    onChange={(e) => setPreBuyVal(e.target.value)}
+                    radius="none"
+                    endContent={
+                        <span className="text-[14px] font-medium text-[#101010]">OKB</span>
+                    }
                 />
                 {/* 社交链接 */}
                 <Input
@@ -542,24 +571,25 @@ export default function CreateForm() {
             <ResponsiveDialog
                 isOpen={isOpen}
                 onOpenChange={onOpenChange}
-                title=''
+                title='创建成功'
                 maxVH={70}
                 size="md"
                 classNames={{ body: "text-[#fff]" }}
             >
-                <div className="flex flex-col items-center pt-[20px]">
+                <div className="flex flex-col items-center pt-[0px]">
                     <Image
-                        src={avatarUrl || "/images/common/default.png"}
+                        src={avatarUrl || "/default.png"}
                         alt='tokenAvatar'
-                        className="w-[80px] h-[80px] rounded-full"
-                        width={80}
-                        height={80}
+                        className="w-[60px] h-[60px] border-1 border-[#F3F3F3] rounded-[0px] object-cover"
+                        width={60}
+                        height={60}
                     />
-                    <div className="text-[17px] f600 mt-[12px]">{ticker}</div>
-                    <div className="text-[13px] text-[#67646B] mt-[4px]">{nameVal}</div>
+                    <div className="text-[20px] text-[#101010] mt-[14px] font-bold">${ticker}</div>
+                    <div className="text-[16px] text-[#666] mt-[8px]">{nameVal}</div>
                     <Button
                         fullWidth
-                        className="f500 text-[14px] text-[#fff] bg-[#1E1E1E] h-[48px] mt-[32px] rounded-full"
+                        radius="none"
+                        className="text-[14px] text-[#101010] bg-[#F3F3F3] h-[48px] mt-[22px]"
                         onPress={() => {
                             if (createdTokenAddress) {
                                 router.push(`/meme/${createdTokenAddress}`);
@@ -570,7 +600,8 @@ export default function CreateForm() {
                     </Button>
                     <Button
                         fullWidth
-                        className="f500 text-[14px] bg-[#FFF] text-[#0E0E0E] h-[48px] my-[12px] rounded-full"
+                        radius="none"
+                        className="text-[14px] bg-[#101010] text-[#FFF] h-[48px] my-[12px]"
                         onPress={() => {
                             const text =
                                 `Just found $${ticker.toUpperCase()} 🚀\n100% Fair Launch on @okaydotfun 👌\nCome and join 👉 https://okay.fun/details/${createdTokenAddress}`
