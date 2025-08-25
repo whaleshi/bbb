@@ -2,20 +2,19 @@
 
 import React, { useState } from "react";
 import { Pagination, Skeleton, Image } from "@heroui/react";
+import _bignumber from "bignumber.js";
 import { formatBigNumber } from "@/utils/formatBigNumber";
-import {
-    TRANSACTION_CONFIG,
-    MULTICALL3_ADDRESS,
-    MULTICALL3_ABI,
-    CONTRACT_CONFIG,
-    getCurrentChainConfig,
-} from "@/config/chains";
+
+import TokenListWithQuery from '@/components/graph/TokenListWithQuery'
+
 
 import { useRouter } from "next/navigation";
+import { useTokens } from '@/hooks/useTokens'
 
-const MobileList = () => {
+const List = () => {
     const router = useRouter();
     const [active, setActive] = useState(0);
+    const { data: tokens, isLoading, error } = useTokens({ first: 10 })
 
     const tabs = [
         { id: 0, label: "新创建" },
@@ -25,24 +24,10 @@ const MobileList = () => {
     ];
 
     const [showSkeleton, setShowSkeleton] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
 
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
-
-    const [list, setList] = useState(
-        Array(10).fill({
-            symbol: "111",
-            is_on_x: 0,
-            name: "q1234123awd",
-            price_usd_f: 123123,
-            price_change_24h_f: 0,
-            mint_refund_info: {
-                net_count: "",
-            },
-        })
-    );
 
     const setHomeListPage = () => { };
 
@@ -69,9 +54,10 @@ const MobileList = () => {
                     onClick={() => router.push("/search")}
                 >搜索</div>
             </div>
+            <TokenListWithQuery />
             {!showSkeleton &&
-                (list.length > 0
-                    ? list.map((item, index) => (
+                ((tokens?.length ?? 0) > 0
+                    ? tokens?.map((item, index) => (
                         <div
                             className="border h-[72px] flex items-center f5001 cursor-pointer border-[#F3F3F3] mt-[8px] px-[16px]"
                             key={index}
@@ -102,62 +88,22 @@ const MobileList = () => {
                                     </span>
                                 </div>
                             </div>
-                            {item?.is_on_x === 1 ? (
-                                <div className="h-[40px] flex flex-col justify-center gap-[4px] text-right flex-1">
-                                    <div className="text-[15px] text-[#101010]">
-                                        ${formatBigNumber(item?.price_usd_f) ?? "--"}
-                                    </div>
+                            <div className="flex items-center justify-end flex-1">
+                                <div className="w-[60px] h-[32px] relative flex items-center justify-center">
                                     <div
-                                        className={`text-[13px] flex items-center justify-end gap-[2px] ${!item?.price_change_24h_f &&
-                                            item?.price_change_24h_f !== 0
-                                            ? "text-[#8F8F8F]"
-                                            : Number(item?.price_change_24h_f) === 0
-                                                ? "text-[#8F8F8F]"
-                                                : Number(item?.price_change_24h_f) > 0
-                                                    ? "text-[#9AED2C]"
-                                                    : "text-[#FF4848]"
-                                            }`}
+                                        className="w-full h-full  flex items-center justify-center"
+                                        style={{
+                                            background: "#E8FCEB",
+                                            backgroundImage:
+                                                "linear-gradient(to right, #41CD5A 50%, #E8FCEB 50%)",
+                                        }}
                                     >
-                                        {(item?.price_change_24h_f ||
-                                            item?.price_change_24h_f === 0) &&
-                                            Number(item?.price_change_24h_f) !== 0 && (
-                                                <ThreeIcon
-                                                    color={
-                                                        Number(item?.price_change_24h_f) > 0
-                                                            ? "#9AED2C"
-                                                            : "#FF4848"
-                                                    }
-                                                    className={
-                                                        Number(item?.price_change_24h_f) > 0
-                                                            ? ""
-                                                            : "rotate-180"
-                                                    }
-                                                />
-                                            )}
-                                        {item?.price_change_24h_f ||
-                                            item?.price_change_24h_f === 0
-                                            ? `${Number(item?.price_change_24h_f) > 0 ? "+" : ""}${item?.price_change_24h_f}%`
-                                            : "--"}
+                                        <span className="text-[12px] text-[#101010]">
+                                            {_bignumber(item?.mintTimes).div(800).times(100).dp(2).toString()}%
+                                        </span>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="flex items-center justify-end flex-1">
-                                    <div className="w-[60px] h-[32px] relative flex items-center justify-center">
-                                        <div
-                                            className="w-full h-full  flex items-center justify-center"
-                                            style={{
-                                                background: "#E8FCEB",
-                                                backgroundImage:
-                                                    "linear-gradient(to right, #41CD5A 50%, #E8FCEB 50%)",
-                                            }}
-                                        >
-                                            <span className="text-[12px] text-[#101010]">
-                                                12%
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            </div>
                         </div>
                     ))
                     : !isLoading &&
@@ -168,7 +114,7 @@ const MobileList = () => {
                             </div>
                         </div>
                     ))}
-            {!showSkeleton && list.length > 0 && (
+            {!showSkeleton && (tokens?.length ?? 0) > 0 && (
                 <div className="w-full flex justify-center my-[20px]">
                     <Pagination
                         showControls
@@ -205,7 +151,7 @@ const MobileList = () => {
     );
 };
 
-export default MobileList;
+export default List;
 
 const SearchIcon = () => (
     <svg
