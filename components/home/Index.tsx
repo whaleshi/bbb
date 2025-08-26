@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import HomeBanner from "./Banner";
 import List from "./List";
+import PrefetchLinks from "@/components/PrefetchLinks";
 const Home = () => {
     const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
@@ -17,6 +18,10 @@ const Home = () => {
         <div className="relative w-full">
             <HomeBanner />
             <List />
+            <PrefetchLinks 
+                paths={['/create', '/about', '/blog', '/pricing']}
+                delay={1500}
+            />
         </div>
     );
 };

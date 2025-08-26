@@ -4,9 +4,9 @@ import React, { useState } from "react";
 import { Pagination, Skeleton, Image } from "@heroui/react";
 import _bignumber from "bignumber.js";
 import { formatBigNumber } from "@/utils/formatBigNumber";
+import Link from "next/link";
 
 import TokenListWithQuery from '@/components/graph/TokenListWithQuery'
-
 
 import { useRouter } from "next/navigation";
 import { useTokens } from '@/hooks/useTokens'
@@ -58,10 +58,11 @@ const List = () => {
             {!showSkeleton &&
                 ((tokens?.length ?? 0) > 0
                     ? tokens?.map((item, index) => (
-                        <div
+                        <Link
+                            href={`/meme/${item?.id || '1'}`}
+                            prefetch={true}
                             className="border h-[72px] flex items-center f5001 cursor-pointer border-[#F3F3F3] mt-[8px] px-[16px]"
                             key={index}
-                            onClick={() => router.push(`/meme/1`)}
                         >
                             <Image
                                 src={"/default.png"}
@@ -104,7 +105,7 @@ const List = () => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </Link>
                     ))
                     : !isLoading &&
                     !isFetching && (

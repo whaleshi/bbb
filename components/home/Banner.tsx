@@ -1,10 +1,9 @@
 import React, { useEffect } from "react";
 import { Button } from "@heroui/button";
-import { useRouter } from "next/navigation";
-import { Image } from "@heroui/react"
+import { Image } from "@heroui/react";
+import Link from "next/link";
 
 const Home = () => {
-    const router = useRouter();
 
     return (
         <div className="flex flex-col items-center justify-center pt-[16px]">
@@ -29,9 +28,10 @@ const Home = () => {
                     运行机制
                 </Button>
                 <Button
+                    as={Link}
+                    href="/create"
                     className="h-[48px] opacity-100 bg-[#101010] text-[#fff]  w-[150px] md:w-[180px]"
                     radius="none"
-                    onPress={() => router.push('/create')}
                 >
                     创建代币
                 </Button>
