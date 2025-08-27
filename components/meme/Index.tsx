@@ -1,11 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import Top from "./Top";
 import Trade from "./Trade";
 
 const Details = () => {
+    // 0x470336615E62Afd9CbfC3cB36d64E9fce639FFb9
     const router = useRouter();
+    const params = useParams();
+    const [tokenAddress, setTokenAddress] = useState<string>("");
+
+    useEffect(() => {
+        console.log(params.addr)
+    }, [params]);
 
     return (
         <div className="w-full max-w-[450px] flex flex-col h-full">

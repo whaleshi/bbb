@@ -6,16 +6,14 @@ import _bignumber from "bignumber.js";
 import { formatBigNumber } from "@/utils/formatBigNumber";
 import Link from "next/link";
 
-import TokenListWithQuery from '@/components/graph/TokenListWithQuery'
 
 import { useRouter } from "next/navigation";
-import { useTokens } from '@/hooks/useTokens'
 
 const List = () => {
     const router = useRouter();
     const [active, setActive] = useState(0);
-    const { data: tokens, isLoading, error } = useTokens({ first: 10 })
-
+    const tokens = [] as any
+    const isLoading = false
     const tabs = [
         { id: 0, label: "新创建" },
         { id: 1, label: "飙升" },
@@ -54,10 +52,9 @@ const List = () => {
                     onClick={() => router.push("/search")}
                 >搜索</div>
             </div>
-            <TokenListWithQuery />
             {!showSkeleton &&
                 ((tokens?.length ?? 0) > 0
-                    ? tokens?.map((item, index) => (
+                    ? tokens?.map((item: any, index: number) => (
                         <Link
                             href={`/meme/${item?.id || '1'}`}
                             prefetch={true}
@@ -154,21 +151,6 @@ const List = () => {
 
 export default List;
 
-const SearchIcon = () => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
-        fill="none"
-    >
-        <circle cx="6" cy="6" r="4.25" stroke="#67646B" stroke-width="1.5" />
-        <path
-            d="M10.4697 11.5303C10.7626 11.8232 11.2374 11.8232 11.5303 11.5303C11.8232 11.2374 11.8232 10.7626 11.5303 10.4697L11 11L10.4697 11.5303ZM11 11L11.5303 10.4697L9.53033 8.46967L9 9L8.46967 9.53033L10.4697 11.5303L11 11Z"
-            fill="#67646B"
-        />
-    </svg>
-);
 
 const ThreeIcon = (props: any) => (
     <svg

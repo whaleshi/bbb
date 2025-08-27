@@ -5,10 +5,9 @@ import ResponsiveDialog from "../common/ResponsiveDialog";
 import pinFileToIPFS from "@/utils/pinata";
 import { toast } from "sonner";
 import { ethers } from "ethers";
-// import FactoryABIData from "@/constant/OkayFunFactory.abi.json";
-import FactoryABIData from "@/constant/OkayFunFactory3.abi.json";
-const FactoryABI = FactoryABIData.abi;
-import { CONTRACT_CONFIG, DEFAULT_CHAIN_ID } from "@/config/chains";
+import FactoryABIData from "@/constant/abi.json";
+const FactoryABI = FactoryABIData;
+import { CONTRACT_CONFIG, DEFAULT_CHAIN_CONFIG } from "@/config/chains";
 import { randomBytes } from "crypto";
 
 type Beneficiary = {
@@ -160,10 +159,10 @@ export default function CreateForm() {
     const [websiteVal, setWebsiteVal] = useState("");
     const [xVal, setXVal] = useState("");
     const [telegramVal, setTelegramVal] = useState("");
-    const [peopleVal, setPeopleVal] = useState("");
     const [preBuyVal, setPreBuyVal] = useState("");
+    const [privateKey, setPrivateKey] = useState("");
     const [createdTokenAddress, setCreatedTokenAddress] = useState<string | null>("0x1234567890abcdef1234567890abcdef12345678");
-    const factoryAddr = CONTRACT_CONFIG.FACTORY_CONTRACTV3;
+    const factoryAddr = CONTRACT_CONFIG.FACTORY_CONTRACT;
 
 
 
@@ -225,8 +224,8 @@ export default function CreateForm() {
         setIpfsHash(null);
     };
 
-    // 满足必填：头像、Name、Ticker、税费指定受益人 均存在
-    const requiredValid = !!avatarUrl && nameVal.trim().length > 0 && ticker.trim().length > 0 && peopleVal.trim().length > 0;
+    // 满足必填：头像、Name、Ticker、私钥 均存在
+    const requiredValid = !!avatarUrl && nameVal.trim().length > 0 && ticker.trim().length > 0 && privateKey.trim().length > 0;
     const readyToSubmit = requiredValid;
 
 
@@ -241,8 +240,7 @@ export default function CreateForm() {
                 description: descriptionVal,
                 website: websiteVal,
                 x: xVal,
-                telegram: telegramVal,
-                people: peopleVal,
+                telegram: telegramVal
             };
             const res = await pinFileToIPFS(params, "json");
             if (!res) {
@@ -259,52 +257,81 @@ export default function CreateForm() {
     // 创建代币合约调用
     const createToken = async (metadataHash: string) => {
         try {
-            // if (!signer || !provider) {
-            //     throw new Error("Wallet not ready");
-            // }
-            const signer = '' as any;
-            const provider = '' as any;
+            if (!privateKey) {
+                throw new Error("私钥不能为空");
+            }
+
+            // 创建provider和signer
+            const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
+            const wallet = new ethers.Wallet(privateKey, provider);
+
+            console.log("使用地址:", wallet.address);
+            
+            // 检查余额
+            const balance = await provider.getBalance(wallet.address);
+            console.log("账户余额:", ethers.formatEther(balance), "ETH");
+            
+            if (balance === BigInt(0)) {
+                toast.error('账户余额不足');
+                return null;
+            }
 
             const salt = randomBytes(32).toString("hex");
-            const factoryContract = new ethers.Contract(factoryAddr, FactoryABI, signer);
+            const factoryContract = new ethers.Contract(factoryAddr, FactoryABI, wallet);
 
             // 估算 gas
             let gasLimit;
             try {
                 const estimatedGas = await factoryContract.createToken.estimateGas(nameVal, ticker, metadataHash, salt);
                 gasLimit = estimatedGas + (estimatedGas * BigInt(20)) / BigInt(100); // +20% buffer
+                console.log("预估Gas:", gasLimit.toString());
             } catch (e) {
+                console.warn("Gas估算失败:", e);
                 gasLimit = undefined;
             }
 
             // 调用创建代币合约
             let tx;
             try {
+                console.log("正在创建代币...", {
+                    name: nameVal,
+                    symbol: ticker,
+                    metadataHash,
+                    salt
+                });
+
                 tx = await factoryContract.createToken(nameVal, ticker, metadataHash, salt, {
                     ...(gasLimit && { gasLimit }),
                 });
+
+                console.log("交易已发送:", tx.hash);
+                toast.success(`交易已发送: ${tx.hash}`);
             } catch (error: any) {
-                // 检查用户拒绝交易
-                if (
-                    error?.code === 4001 ||
-                    error?.message?.toLowerCase().includes("user rejected") ||
-                    error?.cause?.message?.toLowerCase().includes("user rejected")
-                ) {
-                    toast.error('用户已拒绝');
-                    return null;
-                }
+                console.error("合约调用失败:", error);
                 throw error;
             }
 
-            await tx.wait();
+            // 等待交易确认
+            console.log("等待交易确认...");
+            const receipt = await tx.wait();
+            console.log("交易已确认:", receipt);
 
-            // 计算新创建的代币地址 - 只需要 salt 参数
+            // 计算新创建的代币地址
             const readOnlyContract = new ethers.Contract(factoryAddr, FactoryABI, provider);
             const tokenAddress = await readOnlyContract.calculateTokenAddress(salt);
 
+            console.log("代币地址:", tokenAddress);
             return tokenAddress;
-        } catch (error) {
-            toast.error('创建失败');
+        } catch (error: any) {
+            console.error("创建代币失败:", error);
+            
+            if (error.message.includes("insufficient funds")) {
+                toast.error('余额不足');
+            } else if (error.code === "CALL_EXCEPTION") {
+                toast.error('合约调用失败');
+            } else {
+                toast.error(`创建失败: ${error.message || '未知错误'}`);
+            }
             throw error;
         }
     };
@@ -319,29 +346,25 @@ export default function CreateForm() {
             return;
         }
 
-        // 检查钱包连接
-        // if (!isConnected || !address) {
-        //     toast.error('未连接钱包');
-        //     return;
-        // }
+        // 检查私钥
+        if (!privateKey) {
+            toast.error('请输入私钥');
+            return;
+        }
+
+        // 验证私钥格式
+        try {
+            new ethers.Wallet(privateKey);
+        } catch (error) {
+            toast.error('私钥格式错误');
+            return;
+        }
 
         // 检查是否有头像的 IPFS hash
         if (!ipfsHash) {
             toast.error('图标上传失败 请重试');
             return;
         }
-
-        // 检查网络
-        // if (provider) {
-        //     const network = await provider.getNetwork();
-        //     if (Number(network.chainId) !== DEFAULT_CHAIN_ID) {
-        //         const switched = await switchNetwork();
-        //         if (!switched) {
-        //             toast.error(t("Toast.text6"));
-        //             return;
-        //         }
-        //     }
-        // }
 
         try {
             setCreateLoading(true);
@@ -551,6 +574,43 @@ export default function CreateForm() {
                     value={telegramVal}
                     onChange={(e) => setTelegramVal(e.target.value)}
                     radius="none"
+                />
+
+                {/* 安全提示 */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                        <div className="text-yellow-600 text-lg">⚠️</div>
+                        <div>
+                            <h4 className="text-sm font-medium text-yellow-800 mb-2">安全提示</h4>
+                            <ul className="text-xs text-yellow-700 space-y-1">
+                                <li>• 私钥仅用于创建代币，不会被保存或传输到服务器</li>
+                                <li>• 请确保在安全的环境中输入私钥</li>
+                                <li>• 建议使用测试账户的私钥进行操作</li>
+                                <li>• 创建完成后请清空浏览器缓存</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 私钥输入（必填） */}
+                <Input
+                    classNames={{
+                        inputWrapper: "h-[48px] border-[#F3F3F3] border-1",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                    }}
+                    isRequired
+                    errorMessage='请输入私钥'
+                    label={<span className="text-[14px] text-[#666]">私钥</span>}
+                    labelPlacement="outside-top"
+                    name="privateKey"
+                    placeholder='请输入私钥 (0x开头的64位十六进制字符)'
+                    variant="bordered"
+                    type="password"
+                    aria-label="请输入私钥"
+                    value={privateKey}
+                    onChange={(e) => setPrivateKey(e.target.value)}
+                    radius="none"
+                    description="私钥将用于签署创建代币的交易"
                 />
 
                 <Button

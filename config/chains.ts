@@ -2,33 +2,58 @@
 export const CHAINS_CONFIG = {
     // 默认链 - 修改这里即可切换整个应用的默认网络
     DEFAULT_CHAIN: {
-        id: 196,
-        name: "X Layer Mainnet",
+        id: 31337,
+        name: "Localhost",
         nativeCurrency: {
             decimals: 18,
-            name: "OKB",
-            symbol: "OKB",
+            name: "ETH",
+            symbol: "ETH",
         },
         rpcUrls: {
-            default: { http: ["https://rpc.xlayer.tech"] },
+            default: { http: ["http://192.168.1.39:8545"] },
         },
         blockExplorers: {
             default: {
-                name: "OKLink",
-                url: "https://www.oklink.com/xlayer",
-                apiUrl: "https://www.oklink.com/api/v5/explorer/xlayer/api",
+                name: "Local Explorer",
+                url: "http://localhost:3000",
+                apiUrl: "http://localhost:3000/api",
             },
         },
         contracts: {
             multicall3: {
                 address: "0xcA11bde05977b3631167028862bE2a173976CA11",
-                blockCreated: 47416,
+                blockCreated: 0,
             },
         },
     },
 
     // 支持的链列表 - 按优先级排序
     SUPPORTED_CHAINS: [
+        {
+            id: 31337,
+            name: "Localhost",
+            nativeCurrency: {
+                decimals: 18,
+                name: "ETH",
+                symbol: "ETH",
+            },
+            rpcUrls: {
+                default: { http: ["http://192.168.1.39:8545"] },
+            },
+            blockExplorers: {
+                default: {
+                    name: "Local Explorer",
+                    url: "http://localhost:3000",
+                    apiUrl: "http://localhost:3000/api",
+                },
+            },
+            contracts: {
+                multicall3: {
+                    address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+                    blockCreated: 0,
+                },
+            },
+        },
         {
             id: 196,
             name: "X Layer Mainnet",
@@ -58,6 +83,12 @@ export const CHAINS_CONFIG = {
 
     // 链相关配置
     CHAIN_CONFIG: {
+        [31337]: {
+            name: "Localhost",
+            symbol: "ETH",
+            explorerUrl: "http://localhost:3000",
+            rpcUrl: "http://192.168.1.39:8545",
+        },
         [196]: {
             name: "X Layer",
             symbol: "OKB",
@@ -85,8 +116,7 @@ export const getCurrentChainConfig = () => ({
 // 合约地址配置
 export const CONTRACT_CONFIG = {
     // 工厂合约地址 - 用于创建新代币
-    FACTORY_CONTRACT: "0xF7277f422f5E7dd2852E99507940F532F8ae3874" as const,
-    FACTORY_CONTRACTV3: "0x9eaE69CaF9E5CCC57A1e8472824306Edb2740895",
+    FACTORY_CONTRACT: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318" as const,
 } as const;
 
 // Mint/Refund 相关配置

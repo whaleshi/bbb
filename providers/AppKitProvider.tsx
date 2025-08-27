@@ -21,7 +21,7 @@ export const modal = createAppKit({
 	adapters: [ethersAdapter],
 	projectId,
 	networks,
-	defaultNetwork: networks[1],
+	defaultNetwork: networks[0],
 	metadata,
 	themeMode: 'light',
 	defaultAccountTypes: { eip155: "eoa" },

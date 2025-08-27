@@ -9,6 +9,33 @@ if (!projectId) {
     throw new Error("Project ID is not defined");
 }
 
-export const networks = [bscTestnet, xLayer] as [AppKitNetwork, ...AppKitNetwork[]];
+// 定义 Localhost 网络
+const localhost: AppKitNetwork = {
+    id: 31337,
+    name: "Localhost",
+    nativeCurrency: {
+        decimals: 18,
+        name: "ETH",
+        symbol: "ETH",
+    },
+    rpcUrls: {
+        default: { http: ["http://192.168.1.39:8545"] },
+    },
+    blockExplorers: {
+        default: {
+            name: "Local Explorer",
+            url: "http://localhost:3000",
+            apiUrl: "http://localhost:3000/api",
+        },
+    },
+    contracts: {
+        multicall3: {
+            address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+            blockCreated: 0,
+        },
+    },
+};
+
+export const networks = [localhost, bscTestnet, xLayer] as [AppKitNetwork, ...AppKitNetwork[]];
 
 export const ethersAdapter = new EthersAdapter();

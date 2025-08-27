@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from "react";
 import { Input, Button, useDisclosure } from "@heroui/react";
 import { toast } from "sonner";
+import { ethers } from "ethers";
 import Slippage from "@/components/trade/Slippage";
 
 import ResponsiveDialog from "../common/ResponsiveDialog";
+import { DEFAULT_CHAIN_CONFIG } from "@/config/chains";
 
 interface TradeProps {
     isOpen?: boolean;
@@ -47,7 +49,7 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
 
     const handleAmountClick = (amount: { label: string; value: number | null }) => {
         if (isLoading) return; // 加载中禁用点击
-        
+
         if (amount.value === null) {
             // 处理"更多"按钮逻辑
             return;
@@ -64,24 +66,270 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
         }
     };
 
+    // 买入逻辑封装
+    const handleBuy = async (tokenAddress: string, ethAmount: string) => {
+        console.log('=== 买入操作 ===');
+        
+        const { CONTRACT_CONFIG } = await import("@/config/chains");
+        const contractABI = (await import("@/constant/abi.json")).default;
+        
+        const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
+        const wallet = new ethers.Wallet('0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6', provider);
+        
+        console.log('Calling tryBuy with parameters:');
+        console.log('Token address:', tokenAddress);
+        console.log('Amount:', ethers.parseEther(ethAmount));
+
+        // 1. 调用 tryBuy 获取预期输出
+        const readOnlyContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, provider);
+        const result = await readOnlyContract.tryBuy(tokenAddress, ethers.parseEther(ethAmount));
+
+        console.log('tryBuy 返回值:', result);
+        console.log('Token Amount Out:', result[0]?.toString());
+        console.log('Refund:', result[1]?.toString());
+        
+        // 2. 计算3%滑点保护
+        const tokenAmountOut = result[0];
+        const minAmountOut = (tokenAmountOut * BigInt(97)) / BigInt(100);
+        
+        console.log('调用 buyToken 参数:');
+        console.log('Token address:', tokenAddress);
+        console.log('Amount:', ethers.parseEther(ethAmount));
+        console.log('MinAmountOut (with 3% slippage):', minAmountOut.toString());
+
+        // 3. 执行买入交易
+        const contract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, wallet);
+        
+        console.log('发送 buyToken 交易...');
+        
+        // 估算 gas limit
+        let gasLimit;
+        try {
+            const estimatedGas = await contract.buyToken.estimateGas(
+                tokenAddress,
+                ethers.parseEther(ethAmount), 
+                minAmountOut,
+                { value: ethers.parseEther(ethAmount) }
+            );
+            gasLimit = (estimatedGas * BigInt(120)) / BigInt(100); // +20% buffer
+            console.log('预估 Gas Limit:', gasLimit.toString());
+        } catch (e) {
+            console.warn('Gas 估算失败:', e);
+            gasLimit = undefined;
+        }
+
+        // 获取 gas price
+        const gasPrice = (await provider.getFeeData()).gasPrice;
+        const newGasPrice = gasPrice ? gasPrice + (gasPrice * BigInt(5)) / BigInt(100) : null; // +5%
+        console.log('Gas Price:', {
+            original: gasPrice?.toString(),
+            new: newGasPrice?.toString()
+        });
+
+        const txOptions = {
+            value: ethers.parseEther(ethAmount),
+            type: 0, // 强制使用 Legacy 交易类型
+        } as any;
+
+        if (gasLimit) {
+            txOptions.gasLimit = gasLimit;
+        }
+        if (newGasPrice) {
+            txOptions.gasPrice = newGasPrice;
+        }
+
+        const buyResult = await contract.buyToken(
+            tokenAddress,
+            ethers.parseEther(ethAmount), 
+            minAmountOut,
+            txOptions
+        );
+        
+        console.log('buyToken 交易已发送:', buyResult.hash);
+        const receipt = await buyResult.wait();
+        console.log('buyToken 交易已确认:', receipt);
+        
+        return {
+            txHash: buyResult.hash,
+            receipt,
+            tokenAmountOut: result[0]?.toString(),
+            refund: result[1]?.toString()
+        };
+    };
+
+    // 卖出逻辑封装
+    const handleSell = async (tokenAddress: string) => {
+        console.log('=== 卖出操作 ===');
+        
+        const { CONTRACT_CONFIG } = await import("@/config/chains");
+        const contractABI = (await import("@/constant/abi.json")).default;
+        
+        const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
+        const wallet = new ethers.Wallet('0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6', provider);
+        
+        // 1. 获取代币余额
+        const tokenABI = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function approve(address spender, uint256 amount) returns (bool)",
+            "function allowance(address owner, address spender) view returns (uint256)"
+        ];
+        
+        const tokenContract = new ethers.Contract(tokenAddress, tokenABI, wallet);
+        const balance = await tokenContract.balanceOf(wallet.address);
+        
+        console.log('代币余额:', balance.toString());
+        
+        if (balance === BigInt(0)) {
+            throw new Error('代币余额为0，无法卖出');
+        }
+        
+        // 2. 调用 trySell 获取预期输出
+        const readOnlyContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, provider);
+        const sellResult = await readOnlyContract.trySell(tokenAddress, balance);
+        
+        console.log('trySell 返回值:', sellResult);
+        console.log('ETH Amount Out:', sellResult.toString());
+        
+        // 3. 计算3%滑点保护
+        const ethAmountOut = sellResult;
+        const minEthOut = (ethAmountOut * BigInt(97)) / BigInt(100);
+        
+        console.log('MinEthOut (with 3% slippage):', minEthOut.toString());
+        
+        // 4. 检查和执行授权
+        const factoryContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, wallet);
+        const allowance = await tokenContract.allowance(wallet.address, CONTRACT_CONFIG.FACTORY_CONTRACT);
+        
+        console.log('当前授权额度:', allowance.toString());
+        
+        let approveTxHash = null;
+        if (allowance < balance) {
+            console.log('需要授权，发送 approve 交易...');
+            
+            // 估算 approve 的 gas limit
+            let approveGasLimit;
+            try {
+                const estimatedGas = await tokenContract.approve.estimateGas(
+                    CONTRACT_CONFIG.FACTORY_CONTRACT,
+                    balance
+                );
+                approveGasLimit = (estimatedGas * BigInt(120)) / BigInt(100); // +20% buffer
+                console.log('Approve 预估 Gas Limit:', approveGasLimit.toString());
+            } catch (e) {
+                console.warn('Approve Gas 估算失败:', e);
+                approveGasLimit = undefined;
+            }
+
+            // 获取 gas price
+            const gasPrice = (await provider.getFeeData()).gasPrice;
+            const newGasPrice = gasPrice ? gasPrice + (gasPrice * BigInt(5)) / BigInt(100) : null; // +5%
+
+            const approveTxOptions = {
+                type: 0, // 强制使用 Legacy 交易类型
+            } as any;
+
+            if (approveGasLimit) {
+                approveTxOptions.gasLimit = approveGasLimit;
+            }
+            if (newGasPrice) {
+                approveTxOptions.gasPrice = newGasPrice;
+            }
+            
+            const approveResult = await tokenContract.approve(
+                CONTRACT_CONFIG.FACTORY_CONTRACT,
+                balance,
+                approveTxOptions
+            );
+            
+            console.log('授权交易已发送:', approveResult.hash);
+            const approveReceipt = await approveResult.wait();
+            console.log('授权交易已确认:', approveReceipt);
+            approveTxHash = approveResult.hash;
+        }
+        
+        // 5. 执行卖出操作
+        console.log('发送 sellToken 交易...');
+        console.log('卖出参数:');
+        console.log('Token address:', tokenAddress);
+        console.log('Amount:', balance.toString());
+        console.log('MinAmountOut:', minEthOut.toString());
+        
+        // 估算 sellToken 的 gas limit
+        let sellGasLimit;
+        try {
+            const estimatedGas = await factoryContract.sellToken.estimateGas(
+                tokenAddress,
+                balance,
+                minEthOut
+            );
+            sellGasLimit = (estimatedGas * BigInt(120)) / BigInt(100); // +20% buffer
+            console.log('SellToken 预估 Gas Limit:', sellGasLimit.toString());
+        } catch (e) {
+            console.warn('SellToken Gas 估算失败:', e);
+            sellGasLimit = undefined;
+        }
+
+        // 获取 gas price
+        const gasPrice = (await provider.getFeeData()).gasPrice;
+        const newGasPrice = gasPrice ? gasPrice + (gasPrice * BigInt(5)) / BigInt(100) : null; // +5%
+        console.log('SellToken Gas Price:', {
+            original: gasPrice?.toString(),
+            new: newGasPrice?.toString()
+        });
+
+        const sellTxOptions = {
+            type: 0, // 强制使用 Legacy 交易类型
+        } as any;
+
+        if (sellGasLimit) {
+            sellTxOptions.gasLimit = sellGasLimit;
+        }
+        if (newGasPrice) {
+            sellTxOptions.gasPrice = newGasPrice;
+        }
+        
+        const sellTxResult = await factoryContract.sellToken(
+            tokenAddress,
+            balance,
+            minEthOut,
+            sellTxOptions
+        );
+        
+        console.log('sellToken 交易已发送:', sellTxResult.hash);
+        const sellReceipt = await sellTxResult.wait();
+        console.log('sellToken 交易已确认:', sellReceipt);
+        
+        return {
+            txHash: sellTxResult.hash,
+            receipt: sellReceipt,
+            approveTxHash,
+            ethAmountOut: ethAmountOut.toString(),
+            tokenBalance: balance.toString()
+        };
+    };
+
     const handleTradeSubmit = async () => {
         setIsLoading(true);
-        
+
         try {
-            // 模拟交易请求
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // 显示成功提示
-            toast.success(`${isBuy ? '买入' : '卖出'}交易成功！`);
-            
+            const tokenAddress = '0x470336615E62Afd9CbfC3cB36d64E9fce639FFb9';
+
+            if (isBuy) {
+                // 执行买入操作
+                const result = await handleBuy(tokenAddress, '1');
+                toast.success(`买入成功! TxHash: ${result.txHash.slice(0, 10)}... TokenAmount: ${result.tokenAmountOut}`);
+            } else {
+                // 执行卖出操作
+                const result = await handleSell(tokenAddress);
+                toast.success(`卖出成功! TxHash: ${result.txHash.slice(0, 10)}... ETHAmount: ${result.ethAmountOut}`);
+            }
+
             // 重置状态
             setInputAmount("");
             setOutputAmount("");
-        } catch (error) {
-            console.error('交易失败:', error);
-            
-            // 显示失败提示
-            toast.error('交易失败，请重试');
+        } catch (error: any) {
+            console.error(`${isBuy ? '买入' : '卖出'}操作失败:`, error);
+            toast.error(`${isBuy ? '买入' : '卖出'}失败: ${error?.message || '未知错误'}`);
         } finally {
             setIsLoading(false);
         }
