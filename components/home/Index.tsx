@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import HomeBanner from "./Banner";
 import List from "./List";
 import PrefetchLinks from "@/components/PrefetchLinks";
+import TokenList from "@/components/tokens/TokenList";
 const Home = () => {
     const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
@@ -17,8 +18,9 @@ const Home = () => {
     return (
         <div className="relative w-full">
             <HomeBanner />
+            {/* <TokenList /> */}
             <List />
-            <PrefetchLinks 
+            <PrefetchLinks
                 paths={['/create', '/about', '/blog', '/pricing']}
                 delay={1500}
             />

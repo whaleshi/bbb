@@ -9,7 +9,6 @@ export const graphQLClient = new GraphQLClient(SUBGRAPH_URL);
 export const fetchGraphQL = async <T>(query: string, variables?: any): Promise<T> => {
     try {
         const data = await graphQLClient.request<T>(query, variables);
-        console.log("GraphQL response:", data); // 调试日志
         return data;
     } catch (error) {
         console.error("GraphQL query error:", error);

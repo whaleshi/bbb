@@ -8,7 +8,8 @@ import { Providers } from "./providers";
 import ContextProvider from "@/providers/AppKitProvider";
 
 import { siteConfig } from "@/config/site";
-import { Navbar } from "@/components/navbar";
+import RouteAwareNavbar from "@/components/RouteAwareNavbar";
+import RouteAwareMain from "@/components/RouteAwareMain";
 
 export const metadata: Metadata = {
     title: {
@@ -38,16 +39,17 @@ export default function RootLayout({
             <head />
             <body
                 className={clsx(
-                    "min-h-screen text-foreground bg-background antialiased"
+                    "min-h-screen text-foreground antialiased",
                 )}
+                style={{ backgroundColor: '#ffffff' }}
             >
                 <ContextProvider>
                     <Providers themeProps={{ attribute: "class", defaultTheme: "light" }}>
-                        <div className="relative flex flex-col h-screen">
-                            <Navbar />
-                            <main className="container flex-grow px-[16px] mx-auto max-w-[450px] pt-[56px]">
+                        <div className="relative flex flex-col min-h-screen">
+                            <RouteAwareNavbar />
+                            <RouteAwareMain>
                                 {children}
-                            </main>
+                            </RouteAwareMain>
                         </div>
                         <Toaster
                             position="top-center"

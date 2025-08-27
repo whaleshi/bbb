@@ -86,7 +86,7 @@ export const getCurrentChainConfig = () => ({
 export const CONTRACT_CONFIG = {
     // 工厂合约地址 - 用于创建新代币
     FACTORY_CONTRACT: "0xF7277f422f5E7dd2852E99507940F532F8ae3874" as const,
-    FACTORY_CONTRACTV3: "",
+    FACTORY_CONTRACTV3: "0x9eaE69CaF9E5CCC57A1e8472824306Edb2740895",
 } as const;
 
 // Mint/Refund 相关配置
