@@ -143,16 +143,14 @@ function AvatarField({
 export default function CreateForm() {
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
     const router = useRouter();
-    const { isOpen, onOpen, onOpenChange } = useDisclosure({
-        defaultOpen: true
-    });
+    const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
     // AppKit hooks
     const { open } = useAppKit();
     const { address, isConnected } = useAppKitAccount();
     const { walletProvider } = useAppKitProvider('eip155');
-    const [ticker, setTicker] = useState("OKBRO");
-    const [nameVal, setNameVal] = useState("okbro.fun");
+    const [ticker, setTicker] = useState("");
+    const [nameVal, setNameVal] = useState("");
 
     // 头像
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -166,7 +164,7 @@ export default function CreateForm() {
     const [xVal, setXVal] = useState("");
     const [telegramVal, setTelegramVal] = useState("");
     const [preBuyVal, setPreBuyVal] = useState("");
-    const [createdTokenAddress, setCreatedTokenAddress] = useState<string | null>("0x1234567890abcdef1234567890abcdef12345678");
+    const [createdTokenAddress, setCreatedTokenAddress] = useState<string | null>("");
     const factoryAddr = CONTRACT_CONFIG.FACTORY_CONTRACT;
 
 
@@ -291,10 +289,30 @@ export default function CreateForm() {
             const salt = randomBytes(32).toString("hex");
             const factoryContract = new ethers.Contract(factoryAddr, FactoryABI, signer);
 
+            // 检查是否有提前购买金额
+            const hasPreBuy = preBuyVal && parseFloat(preBuyVal) > 0;
+            const preBuyAmount = hasPreBuy ? ethers.parseEther(preBuyVal) : BigInt(0);
+
+            console.log("提前购买检查:", {
+                hasPreBuy,
+                preBuyVal,
+                preBuyAmount: preBuyAmount.toString()
+            });
+
             // 估算 gas
             let gasLimit;
             try {
-                const estimatedGas = await factoryContract.createToken.estimateGas(nameVal, ticker, metadataHash, salt);
+                let estimatedGas;
+                if (hasPreBuy) {
+                    // 使用 createTokenAndBuy 估算 gas
+                    estimatedGas = await factoryContract.createTokenAndBuy.estimateGas(
+                        nameVal, ticker, metadataHash, salt, preBuyAmount,
+                        { value: preBuyAmount }
+                    );
+                } else {
+                    // 使用 createToken 估算 gas
+                    estimatedGas = await factoryContract.createToken.estimateGas(nameVal, ticker, metadataHash, salt);
+                }
                 gasLimit = estimatedGas + (estimatedGas * BigInt(20)) / BigInt(100); // +20% buffer
                 console.log("预估Gas:", gasLimit.toString());
             } catch (e) {
@@ -305,16 +323,31 @@ export default function CreateForm() {
             // 调用创建代币合约
             let tx;
             try {
-                console.log("正在创建代币...", {
-                    name: nameVal,
-                    symbol: ticker,
-                    metadataHash,
-                    salt
-                });
+                if (hasPreBuy) {
+                    console.log("正在创建代币并购买...", {
+                        name: nameVal,
+                        symbol: ticker,
+                        metadataHash,
+                        salt,
+                        amount: ethers.formatEther(preBuyAmount)
+                    });
 
-                tx = await factoryContract.createToken(nameVal, ticker, metadataHash, salt, {
-                    ...(gasLimit && { gasLimit }),
-                });
+                    tx = await factoryContract.createTokenAndBuy(nameVal, ticker, metadataHash, salt, preBuyAmount, {
+                        value: preBuyAmount,
+                        ...(gasLimit && { gasLimit }),
+                    });
+                } else {
+                    console.log("正在创建代币...", {
+                        name: nameVal,
+                        symbol: ticker,
+                        metadataHash,
+                        salt
+                    });
+
+                    tx = await factoryContract.createToken(nameVal, ticker, metadataHash, salt, {
+                        ...(gasLimit && { gasLimit }),
+                    });
+                }
 
                 console.log("交易已发送:", tx.hash);
                 toast.success(`交易已发送: ${tx.hash}`);
@@ -432,7 +465,7 @@ export default function CreateForm() {
                 <Input
                     classNames={{
                         inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     isRequired
                     errorMessage='请输入名称'
@@ -451,7 +484,7 @@ export default function CreateForm() {
                 <Input
                     classNames={{
                         inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] uppercase tracking-[-0.07px] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] uppercase tracking-[-0.07px]",
                     }}
                     isRequired
                     errorMessage='请输入Ticker'
@@ -470,13 +503,13 @@ export default function CreateForm() {
                 <Textarea
                     classNames={{
                         inputWrapper: "border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                         label: "pb-[8px]",
                     }}
                     label={
                         <div className="flex items-center gap-2">
                             <span className="text-[14px] text-[#666]">描述</span>
-                            <span className="text-[#999]">-可选</span>
+                            <span className="text-[#999]">可选</span>
                         </div>
                     }
                     labelPlacement="outside"
@@ -494,22 +527,39 @@ export default function CreateForm() {
                 <Input
                     classNames={{
                         inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                     }}
                     label={
                         <div className="flex items-center gap-2">
                             <span className="text-[14px] text-[#666]">提前买入</span>
-                            <span className="text-[#999]">-可选</span>
+                            <span className="text-[#999]">可选 (最大1 OKB)</span>
                         </div>
                     }
                     labelPlacement="outside-top"
                     name="preBuy"
-                    placeholder="请输入金额"
+                    placeholder="0-1"
                     variant="bordered"
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     aria-label="请输入提前买入金额"
                     value={preBuyVal}
-                    onChange={(e) => setPreBuyVal(e.target.value)}
+                    onChange={(e) => {
+                        const value = e.target.value;
+                        // 只允许数字和小数点
+                        if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                            const numValue = parseFloat(value);
+                            // 限制最大值为1，NaN表示空字符串或无效输入
+                            if (value === '' || (!isNaN(numValue) && numValue <= 1)) {
+                                setPreBuyVal(value);
+                            }
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        // 阻止上下箭头键
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                        }
+                    }}
                     radius="none"
                     endContent={
                         <span className="text-[14px] font-medium text-[#101010]">OKB</span>
@@ -519,12 +569,12 @@ export default function CreateForm() {
                 <Input
                     classNames={{
                         inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     label={
                         <div className="flex items-center gap-2">
                             <span className="text-[14px] text-[#666]">网站</span>
-                            <span className="text-[#999]">-可选</span>
+                            <span className="text-[#999]">可选</span>
                         </div>
                     }
                     labelPlacement="outside-top"
@@ -540,12 +590,12 @@ export default function CreateForm() {
                 <Input
                     classNames={{
                         inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     label={
                         <div className="flex items-center gap-2">
                             <span className="text-[14px] text-[#666]">X</span>
-                            <span className="text-[#999]">-可选</span>
+                            <span className="text-[#999]">可选</span>
                         </div>
                     }
                     labelPlacement="outside-top"
@@ -561,12 +611,12 @@ export default function CreateForm() {
                 <Input
                     classNames={{
                         inputWrapper: "h-[48px] border-[#F3F3F3]  border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
+                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     label={
                         <div className="flex items-center gap-2">
                             <span className="text-[14px] text-[#666]">Telegram</span>
-                            <span className="text-[#999]">-可选</span>
+                            <span className="text-[#999]">可选</span>
                         </div>
                     }
                     labelPlacement="outside-top"

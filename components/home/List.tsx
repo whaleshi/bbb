@@ -32,18 +32,18 @@ const List = () => {
         if (!tokens || tokens.length === 0) return tokens;
 
         const sortedTokens = [...tokens];
-        
+
         switch (activeTab) {
             case 0: // 新创建 - 倒序 (最新的在前)
                 return sortedTokens.reverse();
-                
+
             case 1: // 飙升 - 按进度最高排序
                 return sortedTokens.sort((a, b) => {
                     const progressA = parseFloat(a.progress || '0');
                     const progressB = parseFloat(b.progress || '0');
                     return progressB - progressA; // 降序
                 });
-                
+
             case 2: // 新开盘 - 只显示launched=true的token
                 const launchedTokens = sortedTokens.filter(token => token.launched === true);
                 // 按进度降序排列已启动的token
@@ -52,14 +52,14 @@ const List = () => {
                     const progressB = parseFloat(b.progress || '0');
                     return progressB - progressA;
                 });
-                
+
             case 3: // 热门 - 待定，暂时按进度排序
                 return sortedTokens.sort((a, b) => {
                     const progressA = parseFloat(a.progress || '0');
                     const progressB = parseFloat(b.progress || '0');
                     return progressB - progressA;
                 });
-                
+
             default:
                 return sortedTokens;
         }
@@ -401,15 +401,15 @@ const List = () => {
                                 </div>
                                 <div>
                                     <span className="text-[11px] font-medium text-[rgba(170,170,170,1)]">
-                                        发行量{" "}
+                                        市值{" "}
                                         <i className="not-italic text-[11px]  font-medium text-[#101010]">
-                                            {item?.info?.totalSupply?.toString() || '0'}
+                                            --
                                         </i>
                                     </span>
                                     <span className="text-[11px] font-medium text-[rgba(170,170,170,1)] ml-2.5">
-                                        状态{" "}
+                                        24H{" "}
                                         <i className={`not-italic text-[11px] font-medium ${item?.launched ? 'text-[#41CD5A]' : 'text-[#999]'}`}>
-                                            {item?.launched ? '已启动' : '未启动'}
+                                            --
                                         </i>
                                     </span>
                                 </div>
@@ -439,7 +439,7 @@ const List = () => {
                             </div>
                         </div>
                     ))}
-            {!contractLoading && (tokenList?.length ?? 0) > 0 && (
+            {/* {!contractLoading && (tokenList?.length ?? 0) > 0 && (
                 <div className="w-full flex justify-center my-[20px]">
                     <Pagination
                         showControls
@@ -456,7 +456,7 @@ const List = () => {
                         }}
                     />
                 </div>
-            )}
+            )} */}
         </div>
     );
 };

@@ -1,8 +1,10 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input, Button, useDisclosure } from "@heroui/react";
+import { toast } from "sonner";
 
 import ResponsiveDialog from "../common/ResponsiveDialog";
+import { useSlippageStore } from "@/stores/useSlippageStore";
 
 interface SlippageProps {
     isOpen?: boolean;
@@ -10,7 +12,8 @@ interface SlippageProps {
 }
 
 export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps) {
-    const [activeSlippage, setActiveSlippage] = useState(0);
+    const { slippage, setSlippage } = useSlippageStore();
+    const [activeSlippage, setActiveSlippage] = useState(-1);
     const [customSlippage, setCustomSlippage] = useState("");
 
     const slippageOptions = [
@@ -18,6 +21,19 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
         { id: 1, label: "3%", value: 3 },
         { id: 2, label: "5%", value: 5 }
     ];
+
+    // 初始化当前滑点设置
+    useEffect(() => {
+        const currentOption = slippageOptions.find(option => option.value === slippage);
+        if (currentOption) {
+            setActiveSlippage(currentOption.id);
+            setCustomSlippage("");
+        } else {
+            // 自定义滑点
+            setActiveSlippage(-1);
+            setCustomSlippage(slippage.toString());
+        }
+    }, [isOpen, slippage]);
 
     return (
         <ResponsiveDialog
@@ -61,8 +77,12 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
                     variant="bordered"
                     value={customSlippage}
                     onChange={(e) => {
-                        setCustomSlippage(e.target.value);
-                        setActiveSlippage(-1); // 清除预设选择
+                        const value = e.target.value;
+                        // 只允许数字和小数点，限制最大值为50%
+                        if (value === '' || (/^\d*\.?\d*$/.test(value) && parseFloat(value || '0') <= 50)) {
+                            setCustomSlippage(value);
+                            setActiveSlippage(-1); // 清除预设选择
+                        }
                     }}
                     endContent={
                         <span className="text-[14px] font-medium text-[#101010]">%</span>
@@ -75,8 +95,31 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
                     radius="none"
                     className="flex-1 h-[48px] text-[14px] bg-[#41CD5A] text-white"
                     onPress={() => {
-                        // 这里可以添加保存滑点设置的逻辑
-                        console.log('保存滑点:', activeSlippage >= 0 ? slippageOptions[activeSlippage].value : customSlippage);
+                        let newSlippage: number;
+                        
+                        if (activeSlippage >= 0) {
+                            // 使用预设滑点
+                            newSlippage = slippageOptions[activeSlippage].value;
+                        } else if (customSlippage) {
+                            // 使用自定义滑点
+                            const customValue = parseFloat(customSlippage);
+                            if (isNaN(customValue) || customValue <= 0) {
+                                toast.error('请输入有效的滑点值');
+                                return;
+                            }
+                            if (customValue > 50) {
+                                toast.error('滑点不能超过50%');
+                                return;
+                            }
+                            newSlippage = customValue;
+                        } else {
+                            toast.error('请选择或输入滑点值');
+                            return;
+                        }
+                        
+                        // 保存滑点设置到store
+                        setSlippage(newSlippage);
+                        toast.success(`滑点已设置为 ${newSlippage}%`);
                         onOpenChange?.(false);
                     }}
                 >

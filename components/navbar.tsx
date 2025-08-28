@@ -8,12 +8,11 @@ import {
     NavbarItem,
     NavbarMenuItem,
 } from "@heroui/navbar";
-import { Kbd, Button, Link, Image, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
+import { Kbd, Button, Link, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/react";
 import { link as linkStyles } from "@heroui/theme";
 import NextLink from "next/link";
-import clsx from "clsx";
 import { shortenAddress } from "@/utils";
-
+import Image from "next/image";
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/components/theme-switch";
 import SearchDropdown from "@/components/SearchDropdown";
@@ -25,14 +24,52 @@ import {
     Logo,
 } from "@/components/icons";
 
-import { useAppKit, useAppKitAccount, useDisconnect } from "@reown/appkit/react";
+import { useAppKit, useAppKitAccount, useDisconnect, useAppKitProvider } from "@reown/appkit/react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ethers } from "ethers";
+import { DEFAULT_CHAIN_CONFIG } from "@/config/chains";
 
 export const Navbar = () => {
     const { open, close } = useAppKit();
     const { address, isConnected, caipAddress, status, embeddedWalletInfo } = useAppKitAccount();
+    const { walletProvider } = useAppKitProvider("eip155");
     const { disconnect } = useDisconnect();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    // 获取钱包余额，3秒刷新一次
+    const { data: walletBalance, isLoading: balanceLoading } = useQuery({
+        queryKey: ['walletBalance', address],
+        queryFn: async () => {
+            if (!isConnected || !address) {
+                return '0';
+            }
+
+            try {
+                const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
+                const balance = await provider.getBalance(address);
+                // 返回格式化的余额（18位小数）
+                return ethers.formatEther(balance);
+            } catch (error) {
+                console.error('获取钱包余额失败:', error);
+                return '0';
+            }
+        },
+        enabled: !!(isConnected && address), // 只有在钱包连接且有地址时才执行查询
+        refetchInterval: 10000, // 每3秒刷新一次余额
+        staleTime: 8000, // 2秒内的数据认为是新鲜的
+        retry: 2, // 失败时重试2次
+    });
+
+    // 格式化余额显示
+    const formatBalance = (balance: string) => {
+        const num = parseFloat(balance);
+        if (num === 0) return '0 OKB';
+        if (num < 0.001) return '<0.001 OKB';
+        if (num < 1) return `${num.toFixed(3)} OKB`;
+        if (num < 1000) return `${num.toFixed(2)} OKB`;
+        return `${(num / 1000).toFixed(2)}K OKB`;
+    };
 
     const toDisconnect = () => {
         disconnect();
@@ -64,15 +101,11 @@ export const Navbar = () => {
             >
                 <NavbarItem className="hidden sm:flex gap-2">
                     <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
-                        <TwitterIcon className="text-default-500" />
+                        <Image src="/x.png" width={36} height={36} alt="x" />
                     </Link>
                     <Link isExternal aria-label="Discord" href={siteConfig.links.discord}>
-                        <DiscordIcon className="text-default-500" />
+                        <Image src="/tg.png" width={36} height={36} alt="tg" />
                     </Link>
-                    <Link isExternal aria-label="Github" href={siteConfig.links.github}>
-                        <GithubIcon className="text-default-500" />
-                    </Link>
-                    <ThemeSwitch />
                 </NavbarItem>
                 <NavbarItem className="hidden lg:flex"><SearchDropdown /></NavbarItem>
                 <NavbarItem className="hidden md:flex">
@@ -88,7 +121,9 @@ export const Navbar = () => {
                                     <DropdownItem key="balance" className="h-14 gap-2 rounded-[0px]" textValue="余额">
                                         <div className="flex flex-col">
                                             <p className="text-sm text-[#999]">余额</p>
-                                            <p className="text-sm font-semibold text-[#101010]">0 OKB</p>
+                                            <p className="text-sm font-semibold text-[#101010]">
+                                                {balanceLoading ? '加载中...' : formatBalance(walletBalance || '0')}
+                                            </p>
                                         </div>
                                     </DropdownItem>
                                     <DropdownItem key="address" className="rounded-[0px]" textValue="地址">
@@ -151,7 +186,9 @@ export const Navbar = () => {
                         <div className="w-full border-[#F3F3F3] border-[1px] h-[76px] px-[16px] flex justify-between items-center">
                             <div className="flex flex-col justify-center h-full">
                                 <div className="text-[11px] text-[#AAA]">余额</div>
-                                <div className="text-[18px] text-[#101010] font-semibold">0 OKB</div>
+                                <div className="text-[18px] text-[#101010] font-semibold">
+                                    {balanceLoading ? '加载中...' : formatBalance(walletBalance || '0')}
+                                </div>
                             </div>
                             <div
                                 onClick={() => { toDisconnect() }}
@@ -193,8 +230,12 @@ export const Navbar = () => {
                 <div className="text-[16px] text-[#333] font-bold mt-[10px]">关于我们</div>
                 <div className="text-[12px] text-[#999] mt-[10px]">okbro.fun 是构建在 X Layer 上的代币发射台。最初由社区发起，致力于打造兄弟战壕。</div>
                 <div className="flex gap-[12px] relative mt-[10px]">
-                    <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)]"></div>
-                    <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)]"></div>
+                    <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)] flex items-center justify-center cursor-pointer">
+                        <Image src="/x.png" width={26} height={26} alt="x" />
+                    </div>
+                    <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)] flex items-center justify-center cursor-pointer">
+                        <Image src="/tg.png" width={26} height={26} alt="tg" />
+                    </div>
                 </div>
             </NavbarMenu>
         </HeroUINavbar>

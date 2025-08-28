@@ -2,11 +2,15 @@
 import React, { useState, useEffect } from "react";
 import { Input, Button, useDisclosure } from "@heroui/react";
 import { toast } from "sonner";
-import { ethers } from "ethers";
-import { useAppKit, useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
+import { useAppKit } from "@reown/appkit/react";
 import Slippage from "@/components/trade/Slippage";
-
+import { useTokenTrading } from "@/hooks/useTokenTrading";
 import ResponsiveDialog from "../common/ResponsiveDialog";
+import { formatBigNumber } from '@/utils/formatBigNumber';
+import _bignumber from "bignumber.js";
+import { useSlippageStore } from "@/stores/useSlippageStore";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { ethers } from "ethers";
 import { DEFAULT_CHAIN_CONFIG } from "@/config/chains";
 
 interface TradeProps {
@@ -14,9 +18,11 @@ interface TradeProps {
     onOpenChange?: (open: boolean) => void;
     initialMode?: boolean; // true for buy, false for sell
     tokenAddress?: string; // token address for trading
+    balances?: any; // user's token balance
+    metaData?: any; // token metadata
 }
 
-export default function Trade({ isOpen = false, onOpenChange, initialMode = true, tokenAddress }: TradeProps) {
+export default function Trade({ isOpen = false, onOpenChange, initialMode = true, tokenAddress, balances, metaData }: TradeProps) {
     const [isBuy, setIsBuy] = useState(initialMode);
     const [isSlippageOpen, setIsSlippageOpen] = useState(false);
     const [inputAmount, setInputAmount] = useState("");
@@ -25,14 +31,53 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
 
     // AppKit hooks
     const { open } = useAppKit();
-    const { address, isConnected } = useAppKitAccount();
-    const { walletProvider } = useAppKitProvider('eip155');
+    const queryClient = useQueryClient();
+
+    // 使用自定义trading hooks
+    const { handleBuy, handleSell, isConnected, address } = useTokenTrading();
+    const { slippage } = useSlippageStore();
+
+    // 预估输出金额 - 当输入框有值时每3秒调用一次
+    const { data: estimatedOutput } = useQuery({
+        queryKey: ['estimateOutput', tokenAddress, inputAmount, isBuy, address],
+        queryFn: async () => {
+            if (!inputAmount || !tokenAddress || !isConnected || !address || parseFloat(inputAmount) <= 0) {
+                return '0';
+            }
+
+            try {
+                const { CONTRACT_CONFIG } = await import('@/config/chains');
+                const contractABI = (await import('@/constant/abi.json')).default;
+                const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
+                const readOnlyContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, provider);
+
+                if (isBuy) {
+                    // 调用 tryBuy 获取预期代币输出
+                    const result = await readOnlyContract.tryBuy(tokenAddress, ethers.parseEther(inputAmount));
+                    const tokenAmountOut = result[0];
+                    return ethers.formatEther(tokenAmountOut);
+                } else {
+                    // 调用 trySell 获取预期ETH输出
+                    const sellAmount = ethers.parseEther(inputAmount);
+                    const result = await readOnlyContract.trySell(tokenAddress, sellAmount);
+                    return ethers.formatEther(result);
+                }
+            } catch (error) {
+                console.error('预估输出失败:', error);
+                return '0';
+            }
+        },
+        enabled: !!(inputAmount && tokenAddress && isConnected && address && parseFloat(inputAmount) > 0),
+        refetchInterval: 3000, // 每3秒刷新一次
+        staleTime: 2000,
+        retry: 1,
+    });
 
     const buyAmounts = [
         { label: "0.1 OKB", value: 0.1 },
-        { label: "0.2 OKB", value: 0.2 },
         { label: "0.3 OKB", value: 0.3 },
-        { label: "最多", value: 0.5 }
+        { label: "0.5 OKB", value: 0.5 },
+        { label: "最多", value: 1 }
     ];
 
     const sellAmounts = [
@@ -51,8 +96,26 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
     useEffect(() => {
         if (isOpen) {
             setIsBuy(initialMode);
+            setInputAmount(""); // 清空输入框
         }
     }, [isOpen, initialMode]);
+
+    // 监听买入/卖出模式切换，清空输入框
+    useEffect(() => {
+        setInputAmount("");
+        setOutputAmount("");
+    }, [isBuy]);
+
+    // 监听预估输出变化，更新输出框
+    useEffect(() => {
+        if (estimatedOutput) {
+            // 格式化输出，去除多余的小数位
+            const formatted = parseFloat(estimatedOutput).toFixed(6).replace(/\.?0+$/, '');
+            setOutputAmount(formatted);
+        } else {
+            setOutputAmount("");
+        }
+    }, [estimatedOutput]);
 
     const handleAmountClick = (amount: { label: string; value: number | null }) => {
         if (isLoading) return; // 加载中禁用点击
@@ -63,282 +126,42 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
         }
 
         if (isBuy) {
-            // 买入时直接设置金额
-            setInputAmount(amount.value.toString());
+            // 买入时直接设置金额，确保不超过1
+            const finalAmount = Math.min(amount.value, 1);
+            setInputAmount(finalAmount.toString());
         } else {
-            // 卖出时按百分比计算（这里假设用户余额，实际应该从状态或API获取）
-            const userBalance = 1.0; // 示例余额，实际应该从状态获取
-            const sellAmount = userBalance * amount.value;
-            setInputAmount(sellAmount.toString());
+            // 卖出时按百分比计算，基于实际的token余额，使用bignumber确保精度
+            if (balances?.tokenBalance && _bignumber(balances?.tokenBalance).gt(0)) {
+                try {
+                    const userBalance = _bignumber(balances?.tokenBalance);
+                    const percentage = _bignumber(amount.value);
+                    const sellAmount = userBalance.times(percentage);
+
+                    // 格式化结果，去除尾随零
+                    const formattedAmount = sellAmount.dp(18, _bignumber.ROUND_DOWN).toFixed();
+                    setInputAmount(formattedAmount.replace(/\.?0+$/, ''));
+                } catch (error) {
+                    console.error('计算卖出金额失败:', error);
+                    setInputAmount('0');
+                }
+            } else {
+                // 如果没有余额，设置为0
+                setInputAmount('0');
+            }
         }
     };
 
-    // 买入逻辑封装
-    const handleBuy = async (tokenAddress: string, ethAmount: string) => {
-        console.log('=== 买入操作 ===');
-
-        if (!isConnected || !address || !walletProvider) {
-            throw new Error('请先连接钱包');
-        }
-
-        // 确保 walletProvider 是有效的 EIP-1193 provider
-        if (typeof (walletProvider as any).request !== 'function') {
-            throw new Error('钱包提供者无效');
-        }
-
-        const { CONTRACT_CONFIG } = await import("@/config/chains");
-        const contractABI = (await import("@/constant/abi.json")).default;
-
-        const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
-        const ethersProvider = new ethers.BrowserProvider(walletProvider as any);
-        const signer = await ethersProvider.getSigner();
-
-        console.log('Calling tryBuy with parameters:');
-        console.log('Token address:', tokenAddress);
-        console.log('Amount:', ethers.parseEther(ethAmount));
-
-        // 1. 调用 tryBuy 获取预期输出
-        const readOnlyContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, provider);
-        const result = await readOnlyContract.tryBuy(tokenAddress, ethers.parseEther(ethAmount));
-
-        console.log('tryBuy 返回值:', result);
-        console.log('Token Amount Out:', result[0]?.toString());
-        console.log('Refund:', result[1]?.toString());
-
-        // 2. 计算3%滑点保护
-        const tokenAmountOut = result[0];
-        const minAmountOut = (tokenAmountOut * BigInt(97)) / BigInt(100);
-
-        console.log('调用 buyToken 参数:');
-        console.log('Token address:', tokenAddress);
-        console.log('Amount:', ethers.parseEther(ethAmount));
-        console.log('MinAmountOut (with 3% slippage):', minAmountOut.toString());
-
-        // 3. 执行买入交易
-        const contract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, signer);
-
-        console.log('发送 buyToken 交易...');
-
-        // 估算 gas limit
-        let gasLimit;
-        try {
-            const estimatedGas = await contract.buyToken.estimateGas(
-                tokenAddress,
-                ethers.parseEther(ethAmount),
-                minAmountOut,
-                { value: ethers.parseEther(ethAmount) }
-            );
-            gasLimit = (estimatedGas * BigInt(120)) / BigInt(100); // +20% buffer
-            console.log('预估 Gas Limit:', gasLimit.toString());
-        } catch (e) {
-            console.warn('Gas 估算失败:', e);
-            gasLimit = undefined;
-        }
-
-        // 获取 gas price
-        const gasPrice = (await ethersProvider.getFeeData()).gasPrice;
-        const newGasPrice = gasPrice ? gasPrice + (gasPrice * BigInt(5)) / BigInt(100) : null; // +5%
-        console.log('Gas Price:', {
-            original: gasPrice?.toString(),
-            new: newGasPrice?.toString()
-        });
-
-        const txOptions = {
-            value: ethers.parseEther(ethAmount),
-            type: 0, // 强制使用 Legacy 交易类型
-        } as any;
-
-        if (gasLimit) {
-            txOptions.gasLimit = gasLimit;
-        }
-        if (newGasPrice) {
-            txOptions.gasPrice = newGasPrice;
-        }
-
-        const buyResult = await contract.buyToken(
-            tokenAddress,
-            ethers.parseEther(ethAmount),
-            minAmountOut,
-            txOptions
-        );
-
-        console.log('buyToken 交易已发送:', buyResult.hash);
-        const receipt = await buyResult.wait();
-        console.log('buyToken 交易已确认:', receipt);
-
-        return {
-            txHash: buyResult.hash,
-            receipt,
-            tokenAmountOut: result[0]?.toString(),
-            refund: result[1]?.toString()
-        };
-    };
-
-    // 卖出逻辑封装
-    const handleSell = async (tokenAddress: string) => {
-        console.log('=== 卖出操作 ===');
-
-        if (!isConnected || !address || !walletProvider) {
-            throw new Error('请先连接钱包');
-        }
-
-        // 确保 walletProvider 是有效的 EIP-1193 provider
-        if (typeof (walletProvider as any).request !== 'function') {
-            throw new Error('钱包提供者无效');
-        }
-
-        const { CONTRACT_CONFIG } = await import("@/config/chains");
-        const contractABI = (await import("@/constant/abi.json")).default;
-
-        const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
-        const ethersProvider = new ethers.BrowserProvider(walletProvider as any);
-        const signer = await ethersProvider.getSigner();
-
-        // 1. 获取代币余额
-        const tokenABI = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function approve(address spender, uint256 amount) returns (bool)",
-            "function allowance(address owner, address spender) view returns (uint256)"
-        ];
-
-        const tokenContract = new ethers.Contract(tokenAddress, tokenABI, signer);
-        const balance = await tokenContract.balanceOf(address);
-
-        console.log('代币余额:', balance.toString());
-
-        if (balance === BigInt(0)) {
-            throw new Error('代币余额为0，无法卖出');
-        }
-
-        // 2. 调用 trySell 获取预期输出
-        const readOnlyContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, provider);
-        const sellResult = await readOnlyContract.trySell(tokenAddress, balance);
-
-        console.log('trySell 返回值:', sellResult);
-        console.log('ETH Amount Out:', sellResult.toString());
-
-        // 3. 计算3%滑点保护
-        const ethAmountOut = sellResult;
-        const minEthOut = (ethAmountOut * BigInt(97)) / BigInt(100);
-
-        console.log('MinEthOut (with 3% slippage):', minEthOut.toString());
-
-        // 4. 检查和执行授权
-        const factoryContract = new ethers.Contract(CONTRACT_CONFIG.FACTORY_CONTRACT, contractABI, signer);
-        const allowance = await tokenContract.allowance(address, CONTRACT_CONFIG.FACTORY_CONTRACT);
-
-        console.log('当前授权额度:', allowance.toString());
-
-        let approveTxHash = null;
-        if (allowance < balance) {
-            console.log('需要授权，发送 approve 交易...');
-
-            // 估算 approve 的 gas limit
-            let approveGasLimit;
-            try {
-                const estimatedGas = await tokenContract.approve.estimateGas(
-                    CONTRACT_CONFIG.FACTORY_CONTRACT,
-                    balance
-                );
-                approveGasLimit = (estimatedGas * BigInt(120)) / BigInt(100); // +20% buffer
-                console.log('Approve 预估 Gas Limit:', approveGasLimit.toString());
-            } catch (e) {
-                console.warn('Approve Gas 估算失败:', e);
-                approveGasLimit = undefined;
-            }
-
-            // 获取 gas price
-            const gasPrice = (await provider.getFeeData()).gasPrice;
-            const newGasPrice = gasPrice ? gasPrice + (gasPrice * BigInt(5)) / BigInt(100) : null; // +5%
-
-            const approveTxOptions = {
-                type: 0, // 强制使用 Legacy 交易类型
-            } as any;
-
-            if (approveGasLimit) {
-                approveTxOptions.gasLimit = approveGasLimit;
-            }
-            if (newGasPrice) {
-                approveTxOptions.gasPrice = newGasPrice;
-            }
-
-            const approveResult = await tokenContract.approve(
-                CONTRACT_CONFIG.FACTORY_CONTRACT,
-                balance,
-                approveTxOptions
-            );
-
-            console.log('授权交易已发送:', approveResult.hash);
-            const approveReceipt = await approveResult.wait();
-            console.log('授权交易已确认:', approveReceipt);
-            approveTxHash = approveResult.hash;
-        }
-
-        // 5. 执行卖出操作
-        console.log('发送 sellToken 交易...');
-        console.log('卖出参数:');
-        console.log('Token address:', tokenAddress);
-        console.log('Amount:', balance.toString());
-        console.log('MinAmountOut:', minEthOut.toString());
-
-        // 估算 sellToken 的 gas limit
-        let sellGasLimit;
-        try {
-            const estimatedGas = await factoryContract.sellToken.estimateGas(
-                tokenAddress,
-                balance,
-                minEthOut
-            );
-            sellGasLimit = (estimatedGas * BigInt(120)) / BigInt(100); // +20% buffer
-            console.log('SellToken 预估 Gas Limit:', sellGasLimit.toString());
-        } catch (e) {
-            console.warn('SellToken Gas 估算失败:', e);
-            sellGasLimit = undefined;
-        }
-
-        // 获取 gas price
-        const gasPrice = (await ethersProvider.getFeeData()).gasPrice;
-        const newGasPrice = gasPrice ? gasPrice + (gasPrice * BigInt(5)) / BigInt(100) : null; // +5%
-        console.log('SellToken Gas Price:', {
-            original: gasPrice?.toString(),
-            new: newGasPrice?.toString()
-        });
-
-        const sellTxOptions = {
-            type: 0, // 强制使用 Legacy 交易类型
-        } as any;
-
-        if (sellGasLimit) {
-            sellTxOptions.gasLimit = sellGasLimit;
-        }
-        if (newGasPrice) {
-            sellTxOptions.gasPrice = newGasPrice;
-        }
-
-        const sellTxResult = await factoryContract.sellToken(
-            tokenAddress,
-            balance,
-            minEthOut,
-            sellTxOptions
-        );
-
-        console.log('sellToken 交易已发送:', sellTxResult.hash);
-        const sellReceipt = await sellTxResult.wait();
-        console.log('sellToken 交易已确认:', sellReceipt);
-
-        return {
-            txHash: sellTxResult.hash,
-            receipt: sellReceipt,
-            approveTxHash,
-            ethAmountOut: ethAmountOut.toString(),
-            tokenBalance: balance.toString()
-        };
-    };
 
     const handleTradeSubmit = async () => {
         // 如果未连接钱包，打开连接弹窗
         if (!isConnected) {
             open();
+            return;
+        }
+
+        // 验证输入金额
+        if (!inputAmount || parseFloat(inputAmount) <= 0) {
+            toast.error('请输入有效的交易金额');
             return;
         }
 
@@ -349,21 +172,26 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
             const currentTokenAddress = tokenAddress as string;
 
             if (isBuy) {
-                // 执行买入操作
-                const result = await handleBuy(currentTokenAddress, '1');
-                toast.success(`买入成功! TxHash: ${result.txHash.slice(0, 10)}... TokenAmount: ${result.tokenAmountOut}`);
+                const result = await handleBuy(currentTokenAddress, inputAmount);
+                toast.success(`买入成功!`, { icon: null });
             } else {
-                // 执行卖出操作
-                const result = await handleSell(currentTokenAddress);
-                toast.success(`卖出成功! TxHash: ${result.txHash.slice(0, 10)}... ETHAmount: ${result.ethAmountOut}`);
+                const result = await handleSell(currentTokenAddress, inputAmount);
+                toast.success(`卖出成功!`, { icon: null });
             }
+
+            await queryClient.invalidateQueries({
+                queryKey: ['userBalances']
+            });
+            await queryClient.invalidateQueries({
+                queryKey: ['walletBalance']
+            });
 
             // 重置状态
             setInputAmount("");
             setOutputAmount("");
         } catch (error: any) {
             console.error(`${isBuy ? '买入' : '卖出'}操作失败:`, error);
-            toast.error(`${isBuy ? '买入' : '卖出'}失败: ${error?.message || '未知错误'}`);
+            toast.error(`${isBuy ? '买入' : '卖出'}失败`, { icon: null });
         } finally {
             setIsLoading(false);
         }
@@ -401,16 +229,39 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
                         classNames={{
                             inputWrapper:
                                 "px-[18px] py-3.5 rounded-none border-[1px] border-[#F3F3F3] h-[52]",
-                            input: "text-[14px] text-[#101010] placeholder:text-[#999]",
+                            input: "text-[14px] text-[#101010] placeholder:text-[#999] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                         }}
                         labelPlacement="outside"
-                        placeholder="0.00"
+                        placeholder={isBuy ? "0.00 (最大1)" : "0.00"}
                         variant="bordered"
+                        type="text"
+                        inputMode="decimal"
                         value={inputAmount}
-                        onChange={(e) => setInputAmount(e.target.value)}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            // 只允许数字和小数点
+                            if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                                if (isBuy) {
+                                    // 买入时限制最大值为1
+                                    const numValue = parseFloat(value);
+                                    if (value === '' || (!isNaN(numValue) && numValue <= 1)) {
+                                        setInputAmount(value);
+                                    }
+                                } else {
+                                    // 卖出时不限制
+                                    setInputAmount(value);
+                                }
+                            }
+                        }}
+                        onKeyDown={(e) => {
+                            // 阻止上下箭头键
+                            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                e.preventDefault();
+                            }
+                        }}
                         disabled={isLoading}
                         endContent={
-                            <span className="text-sm font-medium text-[#101010]">OKB</span>
+                            <span className="text-sm font-medium text-[#101010]">{!isBuy ? metaData?.symbol : 'OKB'}</span>
                         }
                     />
                 </div>
@@ -430,10 +281,10 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
                 </div>
                 <div className="flex items-center justify-between">
                     <span className="text-[#EB4B6D] text-xs">
-                        * 内盘单钱包最多支持买入 0.5 OKB
+                        {isBuy && '* 单次最多支持买入 1 OKB'}
                     </span>
                     <span className="text-[#999] text-xs">
-                        余额 <i className="text-[#101010]  not-italic">{isConnected ? '已连接钱包' : '未连接钱包'}</i>
+                        余额 <i className="text-[#101010]  not-italic">{isConnected ? formatBigNumber(isBuy ? balances?.walletBalance : balances?.tokenBalance) : '-'}</i>
                     </span>
                 </div>
                 <div>
@@ -450,7 +301,7 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
                         value={outputAmount}
                         readOnly
                         endContent={
-                            <span className="text-sm font-medium text-[#101010]">OKBRO</span>
+                            <span className="text-sm font-medium text-[#101010]">{isBuy ? metaData?.symbol : 'OKB'}</span>
                         }
                     />
                 </div>
@@ -465,11 +316,11 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
                     {isLoading ? "交易中..." : !isConnected ? "连接钱包" : (isBuy ? "立即买入" : "立即卖出")}
                 </Button>
 
-                <div className="border p-4 border-solid border-[#F3F3F3]">
-                    <div className="flex items-center justify-between text-[12px] pb-[12px]">
+                <div className="border p-4 border-solid border-[#F3F3F3] mb-[10px]">
+                    <div className="flex items-center justify-between text-[12px]">
                         <span className="text-[#999] ">交易滑点</span>
                         <span className="text-[#999]">
-                            <span className="underline text-[#101010]">7.89%</span>
+                            <span className="underline text-[#101010]">{slippage}%</span>
                             <span
                                 className="cursor-pointer hover:text-[#41CD5A] ml-[4px]"
                                 onClick={() => setIsSlippageOpen(true)}
@@ -477,14 +328,6 @@ export default function Trade({ isOpen = false, onOpenChange, initialMode = true
                                 设置
                             </span>
                         </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[12px]  pb-[12px]">
-                        <span className="text-[#999]">已买入</span>
-                        <span className="text-[#101010]">0.48 OKB</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[12px]">
-                        <span className="text-[#999]">剩余可买</span>
-                        <span className="text-[#101010]">0.02 OKB</span>
                     </div>
                 </div>
             </ResponsiveDialog>
