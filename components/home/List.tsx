@@ -15,6 +15,8 @@ const List = () => {
     const [active, setActive] = useState(0);
     const [tokenList, setTokenList] = useState<any[]>([]);
     const [tokenMetadata, setTokenMetadata] = useState<{ [address: string]: any }>({});
+    const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const tabs = [
         { id: 0, label: "新建" },
         { id: 1, label: "狂飆" },
@@ -26,6 +28,15 @@ const List = () => {
     const fetchedTokens = useRef(new Set<string>());
 
     const setHomeListPage = () => { };
+
+    // 根据搜索查询过滤代币
+    const getFilteredTokenList = (tokens: any[], query: string) => {
+        if (!query || query.trim() === '') return tokens;
+
+        return tokens.filter(token =>
+            token.address && token.address.toLowerCase().includes(query.toLowerCase().trim())
+        );
+    };
 
     // 根据当前tab类型对token列表进行排序
     const getSortedTokenList = (tokens: any[], activeTab: number) => {
@@ -356,34 +367,62 @@ const List = () => {
     }, [contractData, fetchTokenMetadata]); // 移除tokenMetadata依赖，使用ref追踪
 
     return (
-        <div className="w-full max-w-[450px] pt-[32px] mx-auto">
+        <div className="w-full max-w-[450px] py-[32px] mx-auto">
             <div className="h-[54px] w-full flex items-center justify-between relative ">
-                <div className="flex gap-[24px] text-[16px]">
-                    {tabs.map((tab) => (
-                        <div
-                            key={tab.id}
-                            className={
-                                active === tab.id
-                                    ? "text-[#101010] cursor-pointer"
-                                    : "cursor-pointer text-[#999]"
-                            }
-                            onClick={() => setActive(tab.id)}
-                        >
-                            {tab.label}
+                {!isSearchExpanded ? (
+                    <>
+                        <div className="flex gap-[24px] text-[16px]">
+                            {tabs.map((tab) => (
+                                <div
+                                    key={tab.id}
+                                    className={
+                                        active === tab.id
+                                            ? "text-[#101010] cursor-pointer"
+                                            : "cursor-pointer text-[#999]"
+                                    }
+                                    onClick={() => setActive(tab.id)}
+                                >
+                                    {tab.label}
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-                <div
-                    className="h-[32px] px-[12px] flex items-center gap-[4px] cursor-pointer border-[#F3F3F3] border text-[#101010] text-[13px]"
-                    onClick={() => router.push("/search")}
-                >搜尋</div>
+                        <div
+                            className="h-[32px] px-[12px] flex items-center gap-[4px] cursor-pointer border-[#F3F3F3] border text-[#101010] text-[13px]"
+                            onClick={() => setIsSearchExpanded(true)}
+                        >
+                            搜尋
+                        </div>
+                    </>
+                ) : (
+                    <div className="w-full h-[42px] flex items-center gap-[12px] border-[#F3F3F3] border px-[16px]">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="搜尋戰壕..."
+                            className="flex-1 outline-none text-[16px] text-[#101010] placeholder:text-[#999] bg-transparent"
+                            autoFocus
+                        />
+                        <div
+                            className="cursor-pointer text-[#999] hover:text-[#101010] text-[20px] font-bold"
+                            onClick={() => {
+                                setIsSearchExpanded(false);
+                                setSearchQuery('');
+                            }}
+                        >
+                            ×
+                        </div>
+                    </div>
+                )}
             </div>
             {!contractLoading && (() => {
-                const sortedList = getSortedTokenList(tokenList, active);
+                // 先根据搜索查询过滤，再根据tab排序
+                const filteredList = getFilteredTokenList(tokenList, searchQuery);
+                const sortedList = getSortedTokenList(filteredList, active);
                 return (sortedList?.length ?? 0) > 0
                     ? sortedList?.map((item: any, index: number) => (
                         <Link
-                            href={`/meme/${item?.id || '1'}`}
+                            href={`/meme/${item?.id}`}
                             prefetch={true}
                             className="border h-[72px] flex items-center f5001 cursor-pointer border-[#F3F3F3] mt-[8px] px-[16px]"
                             key={index}
@@ -445,7 +484,7 @@ const List = () => {
                                 }}
                             />
                             <div className="text-[#999] mt-[16px] text-[14px]">
-                                戰壕空空
+                                {searchQuery ? '未找到匹配的戰壕' : '戰壕空空'}
                             </div>
                         </div>
                     );

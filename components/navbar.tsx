@@ -14,15 +14,6 @@ import NextLink from "next/link";
 import { shortenAddress } from "@/utils";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
-import { ThemeSwitch } from "@/components/theme-switch";
-import SearchDropdown from "@/components/SearchDropdown";
-import {
-    TwitterIcon,
-    GithubIcon,
-    DiscordIcon,
-    HeartFilledIcon,
-    Logo,
-} from "@/components/icons";
 
 import { useAppKit, useAppKitAccount, useDisconnect, useAppKitProvider } from "@reown/appkit/react";
 import { useState } from "react";
@@ -33,7 +24,6 @@ import { DEFAULT_CHAIN_CONFIG } from "@/config/chains";
 export const Navbar = () => {
     const { open, close } = useAppKit();
     const { address, isConnected, caipAddress, status, embeddedWalletInfo } = useAppKitAccount();
-    const { walletProvider } = useAppKitProvider("eip155");
     const { disconnect } = useDisconnect();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -100,14 +90,13 @@ export const Navbar = () => {
                 justify="end"
             >
                 <NavbarItem className="hidden sm:flex gap-2">
-                    <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
+                    <Link isExternal aria-label="x" href={siteConfig.links.x}>
                         <Image src="/x.png" width={36} height={36} alt="x" />
                     </Link>
-                    <Link isExternal aria-label="Discord" href={siteConfig.links.discord}>
+                    <Link isExternal aria-label="tg" href={siteConfig.links.tg}>
                         <Image src="/tg.png" width={36} height={36} alt="tg" />
                     </Link>
                 </NavbarItem>
-                <NavbarItem className="hidden lg:flex"><SearchDropdown /></NavbarItem>
                 <NavbarItem className="hidden md:flex">
                     {
                         isConnected ? (
@@ -230,12 +219,16 @@ export const Navbar = () => {
                 <div className="text-[16px] text-[#333] font-bold mt-[10px]">關於我們</div>
                 <div className="text-[12px] text-[#999] mt-[10px]">okbro.fun 是建造在 X Layer 上的代幣發射台。最初由社區發起，致力於打造兄弟戰壕。</div>
                 <div className="flex gap-[12px] relative mt-[10px]">
-                    <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)] flex items-center justify-center cursor-pointer">
-                        <Image src="/x.png" width={26} height={26} alt="x" />
-                    </div>
-                    <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)] flex items-center justify-center cursor-pointer">
-                        <Image src="/tg.png" width={26} height={26} alt="tg" />
-                    </div>
+                    <Link isExternal aria-label="x" href={siteConfig.links.x}>
+                        <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)] flex items-center justify-center cursor-pointer">
+                            <Image src="/x.png" width={26} height={26} alt="x" />
+                        </div>
+                    </Link>
+                    <Link isExternal aria-label="tg" href={siteConfig.links.tg}>
+                        <div className="w-[40px] h-[40px] border-1 border-[#F3F3F3] bg-[rgba(64,204,89,0.00)] flex items-center justify-center cursor-pointer">
+                            <Image src="/tg.png" width={26} height={26} alt="tg" />
+                        </div>
+                    </Link>
                 </div>
             </NavbarMenu>
         </HeroUINavbar>

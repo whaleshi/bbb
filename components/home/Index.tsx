@@ -19,7 +19,7 @@ const Home = () => {
             <HomeBanner />
             <List />
             <PrefetchLinks
-                paths={['/create', '/about', '/blog', '/pricing']}
+                paths={['/create', '/meme/[addr]']}
                 delay={1500}
             />
         </div>

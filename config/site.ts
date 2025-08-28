@@ -1,13 +1,10 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-    name: "OKBRO",
-    description: "Make beautiful websites regardless of your design experience.",
+    name: "OKBRO.FUN",
+    description: "okbro.fun 是建造在 X Layer 上的代幣發射台。最初由社區發起，致力於打造兄弟戰壕。",
     links: {
-        github: "https://github.com/heroui-inc/heroui",
-        twitter: "https://twitter.com/hero_ui",
-        docs: "https://heroui.com",
-        discord: "https://discord.gg/9b6yyZKmH4",
-        sponsor: "https://patreon.com/jrgarciadev",
+        tg: "https://t.me/okbrodotfun",
+        x: "https://x.com/okbrodotfun",
     },
 };
