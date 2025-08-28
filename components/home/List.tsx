@@ -378,9 +378,10 @@ const List = () => {
                     onClick={() => router.push("/search")}
                 >搜尋</div>
             </div>
-            {!contractLoading &&
-                ((tokenList?.length ?? 0) > 0
-                    ? getSortedTokenList(tokenList, active)?.map((item: any, index: number) => (
+            {!contractLoading && (() => {
+                const sortedList = getSortedTokenList(tokenList, active);
+                return (sortedList?.length ?? 0) > 0
+                    ? sortedList?.map((item: any, index: number) => (
                         <Link
                             href={`/meme/${item?.id || '1'}`}
                             prefetch={true}
@@ -432,13 +433,23 @@ const List = () => {
                             </div>
                         </Link>
                     ))
-                    : !contractLoading && !error && (
+                    : (
                         <div className="flex flex-col items-center justify-center py-[60px] pt-[100px]">
-                            <div className="text-[#4c4c4c] mt-[12px] text-[13px]">
-                                Nothing
+                            <img
+                                src="/default.png"
+                                alt="default"
+                                className="w-[120px] h-[120px] opacity-50"
+                                onError={(e) => {
+                                    // 如果图片加载失败，使用默认图片或隐藏
+                                    e.currentTarget.style.display = 'none';
+                                }}
+                            />
+                            <div className="text-[#999] mt-[16px] text-[14px]">
+                                戰壕空空
                             </div>
                         </div>
-                    ))}
+                    );
+            })()}
             {/* {!contractLoading && (tokenList?.length ?? 0) > 0 && (
                 <div className="w-full flex justify-center my-[20px]">
                     <Pagination
