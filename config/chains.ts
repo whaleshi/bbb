@@ -119,13 +119,6 @@ export const CONTRACT_CONFIG = {
     FACTORY_CONTRACT: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318" as const,
 } as const;
 
-// Mint/Refund 相关配置
-export const TRANSACTION_CONFIG = {
-    MINT_FEE: "0.12", // ETH/BNB/OKB 等
-    REFUND_FEE: "0.02",
-    MINT_TARGET: 800, // 目标mint次数
-} as const;
-
 // Multicall3 合约地址 (通用地址，大多数链都支持)
 export const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11";
 

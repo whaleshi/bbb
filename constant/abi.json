@@ -169,6 +169,26 @@
       },
       {
         "internalType": "uint256",
+        "name": "reserve0",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "reserve1",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vReserve0",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "vReserve1",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "maxOffers",
         "type": "uint256"
       },
@@ -191,6 +211,11 @@
         "internalType": "address",
         "name": "creator",
         "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "launched",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",

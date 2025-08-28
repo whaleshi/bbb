@@ -36,6 +36,6 @@ const localhost: AppKitNetwork = {
     },
 };
 
-export const networks = [localhost, bscTestnet, xLayer] as [AppKitNetwork, ...AppKitNetwork[]];
+export const networks = [localhost] as [AppKitNetwork, ...AppKitNetwork[]];
 
 export const ethersAdapter = new EthersAdapter();

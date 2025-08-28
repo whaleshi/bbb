@@ -5,6 +5,7 @@ import ResponsiveDialog from "../common/ResponsiveDialog";
 import pinFileToIPFS from "@/utils/pinata";
 import { toast } from "sonner";
 import { ethers } from "ethers";
+import { useAppKit, useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import FactoryABIData from "@/constant/abi.json";
 const FactoryABI = FactoryABIData;
 import { CONTRACT_CONFIG, DEFAULT_CHAIN_CONFIG } from "@/config/chains";
@@ -145,6 +146,11 @@ export default function CreateForm() {
     const { isOpen, onOpen, onOpenChange } = useDisclosure({
         defaultOpen: true
     });
+
+    // AppKit hooks
+    const { open } = useAppKit();
+    const { address, isConnected } = useAppKitAccount();
+    const { walletProvider } = useAppKitProvider('eip155');
     const [ticker, setTicker] = useState("OKBRO");
     const [nameVal, setNameVal] = useState("okbro.fun");
 
@@ -160,7 +166,6 @@ export default function CreateForm() {
     const [xVal, setXVal] = useState("");
     const [telegramVal, setTelegramVal] = useState("");
     const [preBuyVal, setPreBuyVal] = useState("");
-    const [privateKey, setPrivateKey] = useState("");
     const [createdTokenAddress, setCreatedTokenAddress] = useState<string | null>("0x1234567890abcdef1234567890abcdef12345678");
     const factoryAddr = CONTRACT_CONFIG.FACTORY_CONTRACT;
 
@@ -224,9 +229,9 @@ export default function CreateForm() {
         setIpfsHash(null);
     };
 
-    // 满足必填：头像、Name、Ticker、私钥 均存在
-    const requiredValid = !!avatarUrl && nameVal.trim().length > 0 && ticker.trim().length > 0 && privateKey.trim().length > 0;
-    const readyToSubmit = requiredValid;
+    // 满足必填：头像、Name、Ticker 均存在，钱包已连接时需要完整校验
+    const requiredValid = !!avatarUrl && nameVal.trim().length > 0 && ticker.trim().length > 0;
+    const readyToSubmit = !isConnected || requiredValid;
 
 
 
@@ -257,27 +262,34 @@ export default function CreateForm() {
     // 创建代币合约调用
     const createToken = async (metadataHash: string) => {
         try {
-            if (!privateKey) {
-                throw new Error("私钥不能为空");
+            if (!isConnected || !address || !walletProvider) {
+                throw new Error('请先连接钱包');
             }
 
             // 创建provider和signer
             const provider = new ethers.JsonRpcProvider(DEFAULT_CHAIN_CONFIG.rpcUrl);
-            const wallet = new ethers.Wallet(privateKey, provider);
 
-            console.log("使用地址:", wallet.address);
-            
+            // 确保 walletProvider 是有效的 EIP-1193 provider
+            if (!walletProvider || typeof (walletProvider as any).request !== 'function') {
+                throw new Error('钱包提供者无效');
+            }
+
+            const ethersProvider = new ethers.BrowserProvider(walletProvider as any);
+            const signer = await ethersProvider.getSigner();
+
+            console.log("使用地址:", address);
+
             // 检查余额
-            const balance = await provider.getBalance(wallet.address);
+            const balance = await ethersProvider.getBalance(address);
             console.log("账户余额:", ethers.formatEther(balance), "ETH");
-            
+
             if (balance === BigInt(0)) {
                 toast.error('账户余额不足');
                 return null;
             }
 
             const salt = randomBytes(32).toString("hex");
-            const factoryContract = new ethers.Contract(factoryAddr, FactoryABI, wallet);
+            const factoryContract = new ethers.Contract(factoryAddr, FactoryABI, signer);
 
             // 估算 gas
             let gasLimit;
@@ -318,13 +330,13 @@ export default function CreateForm() {
 
             // 计算新创建的代币地址
             const readOnlyContract = new ethers.Contract(factoryAddr, FactoryABI, provider);
-            const tokenAddress = await readOnlyContract.calculateTokenAddress(salt);
+            const tokenAddress = await readOnlyContract.predictTokenAddress(salt);
 
             console.log("代币地址:", tokenAddress);
             return tokenAddress;
         } catch (error: any) {
             console.error("创建代币失败:", error);
-            
+
             if (error.message.includes("insufficient funds")) {
                 toast.error('余额不足');
             } else if (error.code === "CALL_EXCEPTION") {
@@ -346,17 +358,9 @@ export default function CreateForm() {
             return;
         }
 
-        // 检查私钥
-        if (!privateKey) {
-            toast.error('请输入私钥');
-            return;
-        }
-
-        // 验证私钥格式
-        try {
-            new ethers.Wallet(privateKey);
-        } catch (error) {
-            toast.error('私钥格式错误');
+        // 检查钱包连接状态
+        if (!isConnected) {
+            open();
             return;
         }
 
@@ -575,44 +579,6 @@ export default function CreateForm() {
                     onChange={(e) => setTelegramVal(e.target.value)}
                     radius="none"
                 />
-
-                {/* 安全提示 */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-3">
-                        <div className="text-yellow-600 text-lg">⚠️</div>
-                        <div>
-                            <h4 className="text-sm font-medium text-yellow-800 mb-2">安全提示</h4>
-                            <ul className="text-xs text-yellow-700 space-y-1">
-                                <li>• 私钥仅用于创建代币，不会被保存或传输到服务器</li>
-                                <li>• 请确保在安全的环境中输入私钥</li>
-                                <li>• 建议使用测试账户的私钥进行操作</li>
-                                <li>• 创建完成后请清空浏览器缓存</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 私钥输入（必填） */}
-                <Input
-                    classNames={{
-                        inputWrapper: "h-[48px] border-[#F3F3F3] border-1",
-                        input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] caret-[#9AED2C]",
-                    }}
-                    isRequired
-                    errorMessage='请输入私钥'
-                    label={<span className="text-[14px] text-[#666]">私钥</span>}
-                    labelPlacement="outside-top"
-                    name="privateKey"
-                    placeholder='请输入私钥 (0x开头的64位十六进制字符)'
-                    variant="bordered"
-                    type="password"
-                    aria-label="请输入私钥"
-                    value={privateKey}
-                    onChange={(e) => setPrivateKey(e.target.value)}
-                    radius="none"
-                    description="私钥将用于签署创建代币的交易"
-                />
-
                 <Button
                     className={[
                         "w-full h-[44px] text-[14px] mb-[50px] f600 full",
@@ -624,7 +590,7 @@ export default function CreateForm() {
                     disabled={createLoading || !readyToSubmit}
                     radius="none"
                 >
-                    立即创建
+                    {!isConnected ? "连接钱包" : "立即创建"}
                 </Button>
                 {/* <div className="" onClick={() => { onOpen() }}>1</div> */}
             </Form>

@@ -1,16 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@heroui/react";
 import TradePopup from "@/components/trade/Trade";
+import { useParams } from "next/navigation";
 
 const Trade = () => {
+    const params = useParams();
     const [isTradePopupOpen, setIsTradePopupOpen] = useState(false);
     const [tradeMode, setTradeMode] = useState(true); // true for buy, false for sell
+
+    useEffect(() => {
+        console.log(params.addr)
+    }, [params]);
 
     return <div className="pb-[30px]">
         <TradePopup
             isOpen={isTradePopupOpen}
             onOpenChange={setIsTradePopupOpen}
             initialMode={tradeMode}
+            tokenAddress={params.addr as string}
         />
         {/* <Slippage /> */}
         <Button
