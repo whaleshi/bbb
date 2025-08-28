@@ -16,10 +16,10 @@ const List = () => {
     const [tokenList, setTokenList] = useState<any[]>([]);
     const [tokenMetadata, setTokenMetadata] = useState<{ [address: string]: any }>({});
     const tabs = [
-        { id: 0, label: "新创建" },
-        { id: 1, label: "飙升" },
-        { id: 2, label: "新开盘" },
-        { id: 3, label: "热门" }
+        { id: 0, label: "新建" },
+        { id: 1, label: "狂飆" },
+        { id: 2, label: "開盤" },
+        { id: 3, label: "熱門" }
     ];
 
     const [page, setPage] = useState(0);
@@ -376,7 +376,7 @@ const List = () => {
                 <div
                     className="h-[32px] px-[12px] flex items-center gap-[4px] cursor-pointer border-[#F3F3F3] border text-[#101010] text-[13px]"
                     onClick={() => router.push("/search")}
-                >搜索</div>
+                >搜尋</div>
             </div>
             {!contractLoading &&
                 ((tokenList?.length ?? 0) > 0
@@ -401,7 +401,7 @@ const List = () => {
                                 </div>
                                 <div>
                                     <span className="text-[11px] font-medium text-[rgba(170,170,170,1)]">
-                                        市值{" "}
+                                        戰壕市值{" "}
                                         <i className="not-italic text-[11px]  font-medium text-[#101010]">
                                             --
                                         </i>

@@ -41,7 +41,7 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
             onOpenChange={onOpenChange ?? (() => { })}
             maxVH={70}
             size="md"
-            title="设置"
+            title="設定"
         >
             <div className="text-base text-[#101010] pb-[5px]">
                 Slippage Tolerance
@@ -73,7 +73,7 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
                         input: "text-[14px] text-[#101010] placeholder:text-[#999] text-center",
                     }}
                     labelPlacement="outside"
-                    placeholder="自定义滑点"
+                    placeholder="自訂滑點"
                     variant="bordered"
                     value={customSlippage}
                     onChange={(e) => {
@@ -96,7 +96,7 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
                     className="flex-1 h-[48px] text-[14px] bg-[#41CD5A] text-white"
                     onPress={() => {
                         let newSlippage: number;
-                        
+
                         if (activeSlippage >= 0) {
                             // 使用预设滑点
                             newSlippage = slippageOptions[activeSlippage].value;
@@ -104,69 +104,28 @@ export default function Slippage({ isOpen = false, onOpenChange }: SlippageProps
                             // 使用自定义滑点
                             const customValue = parseFloat(customSlippage);
                             if (isNaN(customValue) || customValue <= 0) {
-                                toast.error('请输入有效的滑点值');
+                                toast.error('請輸入有效的滑點數值');
                                 return;
                             }
                             if (customValue > 50) {
-                                toast.error('滑点不能超过50%');
+                                toast.error('滑點不能超過50%');
                                 return;
                             }
                             newSlippage = customValue;
                         } else {
-                            toast.error('请选择或输入滑点值');
+                            toast.error('請選擇或輸入滑點數值');
                             return;
                         }
-                        
+
                         // 保存滑点设置到store
                         setSlippage(newSlippage);
-                        toast.success(`滑点已设置为 ${newSlippage}%`);
+                        toast.success(`滑點已設定為 ${newSlippage}%`);
                         onOpenChange?.(false);
                     }}
                 >
-                    确认
+                    確認
                 </Button>
             </div>
         </ResponsiveDialog>
     );
 }
-
-type IconProps = {
-    size?: number;
-    height?: number;
-    width?: number;
-    [x: string]: any;
-};
-
-export const CopyIcon = ({ size, height, width, ...props }: IconProps) => {
-    return (
-        <svg
-            fill="none"
-            height={size || height || 12}
-            shapeRendering="geometricPrecision"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.5"
-            viewBox="0 0 24 24"
-            width={size || width || 12}
-            {...props}
-        >
-            <path d="M6 17C4.89543 17 4 16.1046 4 15V5C4 3.89543 4.89543 3 6 3H13C13.7403 3 14.3866 3.4022 14.7324 4M11 21H18C19.1046 21 20 20.1046 20 19V9C20 7.89543 19.1046 7 18 7H11C9.89543 7 9 7.89543 9 9V19C9 20.1046 9.89543 21 11 21Z" />
-        </svg>
-    );
-};
-
-export const CheckIcon = ({ size, height, width, ...props }: IconProps) => {
-    return (
-        <svg
-            fill="currentColor"
-            height={size || height || 12}
-            viewBox="0 0 24 24"
-            width={size || width || 12}
-            xmlns="http://www.w3.org/2000/svg"
-            {...props}
-        >
-            <path d="m2.394 13.742 4.743 3.62 7.616-8.704-1.506-1.316-6.384 7.296-3.257-2.486zm19.359-5.084-1.506-1.316-6.369 7.279-.753-.602-1.25 1.562 2.247 1.798z" />
-        </svg>
-    );
-};

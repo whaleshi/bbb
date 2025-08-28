@@ -98,7 +98,7 @@ function AvatarField({
                     htmlFor={inputId}
                     className={["text-[14px] text-[#666] font-normal", errorText && "text-[#f31260]"].join(" ")}
                 >
-                    图标
+                    圖標
                     {required ? <span className="text-[#f31260] ml-[2px]">*</span> : null}
                 </label>
             </div>
@@ -261,7 +261,7 @@ export default function CreateForm() {
     const createToken = async (metadataHash: string) => {
         try {
             if (!isConnected || !address || !walletProvider) {
-                throw new Error('请先连接钱包');
+                throw new Error('請先連接戰壕');
             }
 
             // 创建provider和signer
@@ -269,7 +269,7 @@ export default function CreateForm() {
 
             // 确保 walletProvider 是有效的 EIP-1193 provider
             if (!walletProvider || typeof (walletProvider as any).request !== 'function') {
-                throw new Error('钱包提供者无效');
+                throw new Error('請先連接戰壕');
             }
 
             const ethersProvider = new ethers.BrowserProvider(walletProvider as any);
@@ -282,7 +282,7 @@ export default function CreateForm() {
             console.log("账户余额:", ethers.formatEther(balance), "ETH");
 
             if (balance === BigInt(0)) {
-                toast.error('账户余额不足');
+                toast.error('帳戶餘額不足');
                 return null;
             }
 
@@ -293,90 +293,48 @@ export default function CreateForm() {
             const hasPreBuy = preBuyVal && parseFloat(preBuyVal) > 0;
             const preBuyAmount = hasPreBuy ? ethers.parseEther(preBuyVal) : BigInt(0);
 
-            console.log("提前购买检查:", {
-                hasPreBuy,
-                preBuyVal,
-                preBuyAmount: preBuyAmount.toString()
-            });
-
             // 估算 gas
             let gasLimit;
             try {
                 let estimatedGas;
                 if (hasPreBuy) {
-                    // 使用 createTokenAndBuy 估算 gas
                     estimatedGas = await factoryContract.createTokenAndBuy.estimateGas(
                         nameVal, ticker, metadataHash, salt, preBuyAmount,
                         { value: preBuyAmount }
                     );
                 } else {
-                    // 使用 createToken 估算 gas
                     estimatedGas = await factoryContract.createToken.estimateGas(nameVal, ticker, metadataHash, salt);
                 }
                 gasLimit = estimatedGas + (estimatedGas * BigInt(20)) / BigInt(100); // +20% buffer
-                console.log("预估Gas:", gasLimit.toString());
             } catch (e) {
-                console.warn("Gas估算失败:", e);
                 gasLimit = undefined;
             }
 
-            // 调用创建代币合约
             let tx;
             try {
                 if (hasPreBuy) {
-                    console.log("正在创建代币并购买...", {
-                        name: nameVal,
-                        symbol: ticker,
-                        metadataHash,
-                        salt,
-                        amount: ethers.formatEther(preBuyAmount)
-                    });
-
                     tx = await factoryContract.createTokenAndBuy(nameVal, ticker, metadataHash, salt, preBuyAmount, {
                         value: preBuyAmount,
                         ...(gasLimit && { gasLimit }),
                     });
                 } else {
-                    console.log("正在创建代币...", {
-                        name: nameVal,
-                        symbol: ticker,
-                        metadataHash,
-                        salt
-                    });
-
                     tx = await factoryContract.createToken(nameVal, ticker, metadataHash, salt, {
                         ...(gasLimit && { gasLimit }),
                     });
                 }
-
-                console.log("交易已发送:", tx.hash);
-                toast.success(`交易已发送: ${tx.hash}`);
             } catch (error: any) {
-                console.error("合约调用失败:", error);
                 throw error;
             }
 
             // 等待交易确认
-            console.log("等待交易确认...");
             const receipt = await tx.wait();
-            console.log("交易已确认:", receipt);
 
             // 计算新创建的代币地址
             const readOnlyContract = new ethers.Contract(factoryAddr, FactoryABI, provider);
             const tokenAddress = await readOnlyContract.predictTokenAddress(salt);
 
-            console.log("代币地址:", tokenAddress);
             return tokenAddress;
         } catch (error: any) {
-            console.error("创建代币失败:", error);
-
-            if (error.message.includes("insufficient funds")) {
-                toast.error('余额不足');
-            } else if (error.code === "CALL_EXCEPTION") {
-                toast.error('合约调用失败');
-            } else {
-                toast.error(`创建失败: ${error.message || '未知错误'}`);
-            }
             throw error;
         }
     };
@@ -399,7 +357,7 @@ export default function CreateForm() {
 
         // 检查是否有头像的 IPFS hash
         if (!ipfsHash) {
-            toast.error('图标上传失败 请重试');
+            toast.error('圖標上傳失敗 請重試');
             return;
         }
 
@@ -421,29 +379,11 @@ export default function CreateForm() {
 
             setCreatedTokenAddress(tokenAddress as string);
             onOpen();
-            toast.success('创建成功');
+            toast.success('鑄造成功', { icon: null });
         } catch (error: any) {
             console.error("Create error:", error);
 
-            // 检查用户拒绝交易
-            const errorMessage = error?.message || "";
-            const causeMessage = error?.cause?.message || "";
-            const errorString = JSON.stringify(error).toLowerCase();
-
-            if (
-                error?.code === 4001 ||
-                errorMessage.toLowerCase().includes("user rejected") ||
-                causeMessage.toLowerCase().includes("user rejected") ||
-                errorString.includes("user rejected")
-            ) {
-                toast.error('用户拒绝了交易');
-            } else if (errorMessage.includes("insufficient funds") || errorString.includes("insufficient funds")) {
-                toast.error('余额不足');
-            } else if (errorMessage.includes("gas") || errorMessage.includes("Gas")) {
-                toast.error('Gas 费用不足');
-            } else {
-                toast.error('创建失败');
-            }
+            toast.error('鑄造失敗，請重試', { icon: null })
         } finally {
             setCreateLoading(false);
         }
@@ -468,11 +408,11 @@ export default function CreateForm() {
                         input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     isRequired
-                    errorMessage='请输入名称'
-                    label={<span className="text-[14px] text-[#666]">名称</span>}
+                    errorMessage='輸入名稱'
+                    label={<span className="text-[14px] text-[#666]">名稱</span>}
                     labelPlacement="outside-top"
                     name="name"
-                    placeholder='请输入名称'
+                    placeholder='輸入名稱'
                     variant="bordered"
                     value={nameVal}
                     onChange={(e) => setNameVal(e.target.value)}
@@ -487,11 +427,11 @@ export default function CreateForm() {
                         input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] uppercase tracking-[-0.07px]",
                     }}
                     isRequired
-                    errorMessage='请输入Ticker'
-                    label={<span className="text-[14px] text-[#666]">Ticker</span>}
+                    errorMessage='輸入代號'
+                    label={<span className="text-[14px] text-[#666]">代號</span>}
                     labelPlacement="outside-top"
                     name="ticker"
-                    placeholder="请输入Ticker"
+                    placeholder="輸入代號"
                     variant="bordered"
                     value={ticker}
                     onChange={(e) => setTicker(e.target.value.toUpperCase())}
@@ -507,16 +447,16 @@ export default function CreateForm() {
                         label: "pb-[8px]",
                     }}
                     label={
-                        <div className="flex items-center gap-2">
-                            <span className="text-[14px] text-[#666]">描述</span>
-                            <span className="text-[#999]">可选</span>
+                        <div className="flex items-center">
+                            <span className="text-[14px] text-[#666]">簡介</span>
+                            <span className="text-[#999]">（可選）</span>
                         </div>
                     }
                     labelPlacement="outside"
-                    placeholder="请输入描述"
+                    placeholder="輸入簡介"
                     variant="bordered"
                     name="description"
-                    aria-label="请输入描述"
+                    aria-label="輸入簡介"
                     value={descriptionVal}
                     onChange={(e) => setDescriptionVal(e.target.value)}
                     maxLength={200}
@@ -530,18 +470,18 @@ export default function CreateForm() {
                         input: "f600 text-[14px] text-[#101010] placeholder:text-[#999] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                     }}
                     label={
-                        <div className="flex items-center gap-2">
-                            <span className="text-[14px] text-[#666]">提前买入</span>
-                            <span className="text-[#999]">可选 (最大1 OKB)</span>
+                        <div className="flex items-center">
+                            <span className="text-[14px] text-[#666]">提前埋伏</span>
+                            <span className="text-[#999]">（可選）</span>
                         </div>
                     }
                     labelPlacement="outside-top"
                     name="preBuy"
-                    placeholder="0-1"
+                    placeholder="最大 1 OKB"
                     variant="bordered"
                     type="text"
                     inputMode="decimal"
-                    aria-label="请输入提前买入金额"
+                    aria-label="提前埋伏"
                     value={preBuyVal}
                     onChange={(e) => {
                         const value = e.target.value;
@@ -572,17 +512,17 @@ export default function CreateForm() {
                         input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     label={
-                        <div className="flex items-center gap-2">
-                            <span className="text-[14px] text-[#666]">网站</span>
-                            <span className="text-[#999]">可选</span>
+                        <div className="flex items-center">
+                            <span className="text-[14px] text-[#666]">網站</span>
+                            <span className="text-[#999]">（可選）</span>
                         </div>
                     }
                     labelPlacement="outside-top"
                     name="website"
-                    placeholder="请输入网站"
+                    placeholder="輸入網站"
                     variant="bordered"
                     type="url"
-                    aria-label="请输入网站"
+                    aria-label="輸入網站"
                     value={websiteVal}
                     onChange={(e) => setWebsiteVal(e.target.value)}
                     radius="none"
@@ -593,17 +533,17 @@ export default function CreateForm() {
                         input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     label={
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center">
                             <span className="text-[14px] text-[#666]">X</span>
-                            <span className="text-[#999]">可选</span>
+                            <span className="text-[#999]">（可選）</span>
                         </div>
                     }
                     labelPlacement="outside-top"
                     name="x"
-                    placeholder="X"
+                    placeholder="輸入 X"
                     variant="bordered"
                     type="url"
-                    aria-label="X"
+                    aria-label="輸入 X"
                     value={xVal}
                     onChange={(e) => setXVal(e.target.value)}
                     radius="none"
@@ -614,17 +554,17 @@ export default function CreateForm() {
                         input: "f600 text-[14px] text-[#101010] placeholder:text-[#999]",
                     }}
                     label={
-                        <div className="flex items-center gap-2">
-                            <span className="text-[14px] text-[#666]">Telegram</span>
-                            <span className="text-[#999]">可选</span>
+                        <div className="flex items-center">
+                            <span className="text-[14px] text-[#666]">電報</span>
+                            <span className="text-[#999]">（可選）</span>
                         </div>
                     }
                     labelPlacement="outside-top"
                     name="telegram"
-                    placeholder='Telegram'
+                    placeholder='輸入電報'
                     variant="bordered"
                     type="url"
-                    aria-label='Telegram'
+                    aria-label='輸入電報'
                     value={telegramVal}
                     onChange={(e) => setTelegramVal(e.target.value)}
                     radius="none"
@@ -640,14 +580,14 @@ export default function CreateForm() {
                     disabled={createLoading || !readyToSubmit}
                     radius="none"
                 >
-                    {!isConnected ? "连接钱包" : "立即创建"}
+                    {!isConnected ? "連接戰壕" : "立即開戰壕"}
                 </Button>
                 {/* <div className="" onClick={() => { onOpen() }}>1</div> */}
             </Form>
             <ResponsiveDialog
                 isOpen={isOpen}
                 onOpenChange={onOpenChange}
-                title='创建成功'
+                title='鑄造成功'
                 maxVH={70}
                 size="md"
                 classNames={{ body: "text-[#fff]" }}
@@ -672,7 +612,7 @@ export default function CreateForm() {
                             }
                         }}
                     >
-                        查看详情
+                        查看詳情
                     </Button>
                     <Button
                         fullWidth
@@ -692,73 +632,3 @@ export default function CreateForm() {
         </>
     );
 }
-
-type IconProps = {
-    size?: number;
-    height?: number;
-    width?: number;
-    [x: string]: any;
-};
-
-export const CopyIcon = ({ size, height, width, ...props }: IconProps) => {
-    return (
-        <svg
-            fill="none"
-            height={size || height || 12}
-            shapeRendering="geometricPrecision"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.5"
-            viewBox="0 0 24 24"
-            width={size || width || 12}
-            {...props}
-        >
-            <path d="M6 17C4.89543 17 4 16.1046 4 15V5C4 3.89543 4.89543 3 6 3H13C13.7403 3 14.3866 3.4022 14.7324 4M11 21H18C19.1046 21 20 20.1046 20 19V9C20 7.89543 19.1046 7 18 7H11C9.89543 7 9 7.89543 9 9V19C9 20.1046 9.89543 21 11 21Z" />
-        </svg>
-    );
-};
-
-export const CheckIcon = ({ size, height, width, ...props }: IconProps) => {
-    return (
-        <svg
-            fill="currentColor"
-            height={size || height || 12}
-            viewBox="0 0 24 24"
-            width={size || width || 12}
-            xmlns="http://www.w3.org/2000/svg"
-            {...props}
-        >
-            <path d="m2.394 13.742 4.743 3.62 7.616-8.704-1.506-1.316-6.384 7.296-3.257-2.486zm19.359-5.084-1.506-1.316-6.369 7.279-.753-.602-1.25 1.562 2.247 1.798z" />
-        </svg>
-    );
-};
-
-const XIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="24" viewBox="0 0 32 24" fill="none">
-        <rect width="32" height="24" rx="12" fill="#383838" />
-        <path d="M13.7324 6.5L21.0654 17.5H18.2676L10.9346 6.5H13.7324Z" stroke="white" />
-        <path d="M15.623 13.9229L12 18H10L14.8398 12.5537L15.623 13.9229ZM22.667 6L17.4014 11.9229L16.6318 10.5381L20.667 6H22.667Z" fill="white" />
-    </svg>
-)
-
-const FailIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="8" fill="#CA3F64" />
-        <path d="M5.00977 5.01123L10.994 10.9955" stroke="black" stroke-width="1.5" />
-        <path d="M5.01562 10.9956L10.9998 5.01138" stroke="black" stroke-width="1.5" />
-    </svg>
-)
-
-const Success = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="8" fill="#9AED2C" />
-        <path d="M4.63965 8.40016L6.87965 10.6402L11.3596 6.16016" stroke="black" stroke-width="1.5" stroke-linecap="square" />
-    </svg>
-)
-
-const InfoIcon = (props: any) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" {...props}>
-        <path d="M6 0C9.31371 0 12 2.68629 12 6C12 9.31371 9.31371 12 6 12C2.68629 12 0 9.31371 0 6C0 2.68629 2.68629 0 6 0ZM5.25 5.25V9.25H6.75V5.25H5.25ZM5.25 2.75V4.25H6.75V2.75H5.25Z" fill="white" fill-opacity="0.15" />
-    </svg>
-)

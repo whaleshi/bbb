@@ -56,7 +56,6 @@ const Trade = ({ metaData }: any) => {
                     tokenBalance: tokenAddress && results[1] ? ethers.formatEther(results[1]) : '0' // 代币余额
                 };
             } catch (error) {
-                console.error('获取余额失败:', error);
                 return { tokenBalance: '0', walletBalance: '0' };
             }
         },
@@ -85,8 +84,8 @@ const Trade = ({ metaData }: any) => {
 
         setIsQuickBuyLoading(true);
         try {
-            await handleBuy(tokenAddress, '0.5');
-            toast.success('快速买入成功!', { icon: null });
+            await handleBuy(tokenAddress, '1');
+            toast.success('上車成功!', { icon: null });
 
             // 刷新余额
             await queryClient.invalidateQueries({
@@ -96,8 +95,7 @@ const Trade = ({ metaData }: any) => {
                 queryKey: ['walletBalance']
             });
         } catch (error: any) {
-            console.error('快速买入失败:', error);
-            toast.error(`快速买入失败: ${error?.message || '未知错误'}`, { icon: null });
+            toast.error(`上車失敗，請重試`, { icon: null });
         } finally {
             setIsQuickBuyLoading(false);
         }
@@ -111,25 +109,24 @@ const Trade = ({ metaData }: any) => {
         }
 
         if (!tokenBalance || parseFloat(tokenBalance) <= 0) {
-            toast.error('没有代币可以卖出', { icon: null });
+            toast.error('餘額為 0', { icon: null });
             return;
         }
 
         setIsSellAllLoading(true);
         try {
             await handleSell(tokenAddress, tokenBalance);
-            toast.success('全部卖出成功!', { icon: null });
-            
+            toast.success('撤退成功!', { icon: null });
+
             // 刷新余额
-            await queryClient.invalidateQueries({ 
-                queryKey: ['userBalances'] 
+            await queryClient.invalidateQueries({
+                queryKey: ['userBalances']
             });
-            await queryClient.invalidateQueries({ 
-                queryKey: ['walletBalance'] 
+            await queryClient.invalidateQueries({
+                queryKey: ['walletBalance']
             });
         } catch (error: any) {
-            console.error('全部卖出失败:', error);
-            toast.error(`全部卖出失败: ${error?.message || '未知错误'}`, { icon: null });
+            toast.error(`撤退失敗，請重試`, { icon: null });
         } finally {
             setIsSellAllLoading(false);
         }
@@ -152,7 +149,7 @@ const Trade = ({ metaData }: any) => {
                 isLoading={isSellAllLoading}
                 onPress={handleSellAll}
             >
-                {isSellAllLoading ? '卖出中...' : '全部卖出'}
+                {isSellAllLoading ? '賣出中...' : '全部賣出'}
             </Button> : <Button
                 radius="none"
                 className="w-full h-[48px] bg-[#E8FCEB] border-[#41CD5A] border-1 text-[14px] text-[#41CD5A]"
@@ -160,7 +157,7 @@ const Trade = ({ metaData }: any) => {
                 isLoading={isQuickBuyLoading}
                 onPress={handleQuickBuy}
             >
-                {isQuickBuyLoading ? '买入中...' : '快速买入 0.5 OKB'}
+                {isQuickBuyLoading ? '買入中...' : '快買 1 OKB'}
             </Button>
         }
         <div className="mt-[12px] flex gap-[12px]">
@@ -175,7 +172,7 @@ const Trade = ({ metaData }: any) => {
                         }
                     }}
                 >
-                    卖出
+                    賣出
                 </Button>
             }
             <Button
@@ -186,7 +183,7 @@ const Trade = ({ metaData }: any) => {
                     setIsTradePopupOpen(true);
                 }}
             >
-                立即买入
+                {hasTokenBalance ? '買入' : '立即上車'}
             </Button>
         </div>
     </div>;
